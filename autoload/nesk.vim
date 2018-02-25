@@ -531,7 +531,9 @@ function! nesk#new_mode_change_state(mode_name) abort
   \}
 endfunction
 
+" Read one character, which is dummy to invoke this function immediately
 function! s:ModeChangeState_next(in, out) abort dict
+  call a:in.read(1)
   let nesk = nesk#get_instance()
   let err = nesk.set_active_mode_name(self._mode_name)
   if err isnot# s:NONE

@@ -6,6 +6,8 @@ set cpo&vim
 
 function! s:main() abort
   call s:define_kana_mode()
+  call s:define_kata_mode()
+  call s:define_hankata_mode()
   call s:define_ascii_mode()
   call s:define_zenei_mode()
 endfunction
@@ -28,29 +30,82 @@ function! s:KanaState_next(in, out) abort
     return a:out.error(nesk#wrap_error(err, 'Cannot load kana table'))
   endif
 
-  let normal_state = s:new_kana_normal_state(table)
+  let normal_state = s:new_table_normal_state(table)
   return normal_state.next(a:in, a:out)
 endfunction
 
-function! s:new_kana_normal_state(table) abort
+" }}}
+
+" 'kata' mode {{{
+
+function! s:define_kata_mode() abort
+  let state = {'next': function('s:KataState_next')}
+  let mode = {'initial_state': state}
+
+  call nesk#define_mode('skk/kata', mode)
+endfunction
+
+function! s:KataState_next(in, out) abort
+  call nesk#table#kata#load()
+
+  let nesk = nesk#get_instance()
+  let [table, err] = nesk.get_table('kata')
+  if err isnot# nesk#error_none()
+    return a:out.error(nesk#wrap_error(err, 'Cannot load kata table'))
+  endif
+
+  let normal_state = s:new_table_normal_state(table)
+  return normal_state.next(a:in, a:out)
+endfunction
+
+" }}}
+
+" 'hankata' mode {{{
+
+function! s:define_hankata_mode() abort
+  let state = {'next': function('s:HankataState_next')}
+  let mode = {'initial_state': state}
+
+  call nesk#define_mode('skk/hankata', mode)
+endfunction
+
+function! s:HankataState_next(in, out) abort
+  call nesk#table#hankata#load()
+
+  let nesk = nesk#get_instance()
+  let [table, err] = nesk.get_table('hankata')
+  if err isnot# nesk#error_none()
+    return a:out.error(nesk#wrap_error(err, 'Cannot load hankata table'))
+  endif
+
+  let normal_state = s:new_table_normal_state(table)
+  return normal_state.next(a:in, a:out)
+endfunction
+
+" }}}
+
+" Table Normal State (kana, kata, hankata) {{{
+
+function! s:new_table_normal_state(table) abort
   return {
   \ '_table': a:table,
   \ '_buf': '',
-  \ 'commit': function('s:KanaNormalState_commit'),
-  \ 'next': function('s:KanaNormalState_next'),
+  \ 'commit': function('s:TableNormalState_commit'),
+  \ 'next': function('s:TableNormalState_next'),
   \}
 endfunction
 
-function! s:KanaNormalState_commit() abort dict
+function! s:TableNormalState_commit() abort dict
   return self._buf
 endfunction
 
-function! s:KanaNormalState_next(in, out) abort dict
+" a:in.unread() continues nesk.filter() loop
+" after leaving this function.
+" (the loop exits when a:in becomes empty)
+function! s:TableNormalState_next(in, out) abort dict
   let c = a:in.read(1)
   if c is# "\<C-j>"
     if self._buf is# ''
-      " Not to stop nesk.filter() loop,
-      " at least 1 byte needs to exist in a:in
       call a:in.unread()
       return nesk#new_disable_state()
     else
@@ -66,10 +121,34 @@ function! s:KanaNormalState_next(in, out) abort dict
       return s:do_backspace(self, a:out)
     endif
     return self
-  elseif c is# 'L' && self._buf is# ''
-    return nesk#new_mode_change_state('skk/zenei')
-  elseif c is# 'l' && self._buf is# ''
-    return nesk#new_mode_change_state('skk/ascii')
+  elseif c is# 'L'
+    if self._buf is# ''
+      call a:in.unread()
+      let name = self._table.name is# 'kana' ? 'skk/zenei' : 'skk/kana'
+      return nesk#new_mode_change_state(name)
+    endif
+    return self
+  elseif c is# 'l'
+    if self._buf is# ''
+      call a:in.unread()
+      let name = self._table.name is# 'kana' ? 'skk/ascii' : 'skk/kana'
+      return nesk#new_mode_change_state(name)
+    endif
+    return self
+  elseif c is# 'q'
+    if self._buf is# ''
+      call a:in.unread()
+      let name = self._table.name is# 'kana' ? 'skk/kata' : 'skk/kana'
+      return nesk#new_mode_change_state(name)
+    endif
+    return self
+  elseif c is# "\<C-q>"
+    if self._buf is# ''
+      call a:in.unread()
+      let name = self._table.name is# 'kana' ? 'skk/hankata' : 'skk/kana'
+      return nesk#new_mode_change_state(name)
+    endif
+    return self
   elseif c =~# '^[A-Z]$'
     let rest = a:in.read(a:in.size())
     let in = nesk#new_string_reader(';' . tolower(c) . rest)
@@ -79,6 +158,7 @@ function! s:KanaNormalState_next(in, out) abort dict
     endwhile
     return state
   elseif c =~# ';'
+    " TODO
     let str = '$'
     call a:out.write(str)
     return self
@@ -178,6 +258,7 @@ endfunction
 function! s:AsciiState_next(in, out) abort dict
   let c = a:in.read(1)
   if c is# "\<C-j>"
+    call a:in.unread()
     return nesk#new_mode_change_state('skk/kana')
   else
     call a:out.write(c)
