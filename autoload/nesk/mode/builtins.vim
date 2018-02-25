@@ -20,7 +20,7 @@ function! s:define_kana_mode() abort
 endfunction
 
 function! s:KanaState_next(in, out) abort
-  runtime! autoload/nesk/table/kana.vim
+  call nesk#table#kana#load()
 
   let nesk = nesk#get_instance()
   let [table, err] = nesk.get_table('kana')
@@ -42,6 +42,8 @@ function! s:new_kana_normal_state(table) abort
   \ '_buf': '',
   \ 'commit': function('s:KanaNormalState_commit'),
   \ 'next': function('s:KanaNormalState_next'),
+  \ 'do_escape': function('s:KanaNormalState_do_escape'),
+  \ 'do_cancel': function('s:KanaNormalState_do_cancel'),
   \ 'do_disable': function('s:KanaNormalState_do_disable'),
   \ 'do_commit': function('s:KanaNormalState_do_commit'),
   \ 'do_backspace': function('s:KanaNormalState_do_backspace'),
@@ -79,12 +81,10 @@ function! s:KanaNormalState_next(in, out) abort dict
     let str = '$'
     call a:out.write(str)
     return self
-  elseif c is# "\<C-g>"
-    " TODO
-    return self
   elseif c is# "\<Esc>"
-    " TODO
-    return self
+    return self.do_escape(a:out)
+  elseif c is# "\<C-g>"
+    return self.do_cancel(a:out)
   else
     let cands = self._table.search(self._buf . c)
     if empty(cands)
@@ -112,6 +112,30 @@ function! s:KanaNormalState_next(in, out) abort dict
   endif
 endfunction
 
+function! s:KanaNormalState_do_escape(out) abort dict
+  if self._buf isnot# ''
+    let bs = repeat("\<C-h>", strchars(self._buf))
+    call a:out.write(bs)
+    let pair = self._table.get(self._buf, nesk#error_none())
+    if pair isnot# nesk#error_none()
+      call a:out.write(pair[0])
+    endif
+    let self._buf = ''
+  endif
+  call a:out.write("\<Esc>")
+  return self
+endfunction
+
+function! s:KanaNormalState_do_cancel(out) abort dict
+  if self._buf isnot# ''
+    let bs = repeat("\<C-h>", strchars(self._buf))
+    call a:out.write(bs)
+    let self._buf = ''
+  endif
+  call a:out.write("\<Esc>")
+  return self
+endfunction
+
 function! s:KanaNormalState_do_backspace(out) abort dict
   let str = "\<C-h>"
   if self._buf isnot# ''
@@ -123,7 +147,7 @@ endfunction
 
 function! s:KanaNormalState_do_enter(out) abort dict
   let bs = repeat("\<C-h>", strchars(self._buf))
-  let str = bs . c
+  let str = bs . "\<CR>"
   let self._buf = ''
   call a:out.write(str)
   return self
@@ -189,7 +213,7 @@ function! s:define_zenei_mode() abort
 endfunction
 
 function! s:ZeneiTable_next0(in, out) abort dict
-  runtime! autoload/nesk/table/zenei.vim
+  call nesk#table#zenei#load()
 
   let nesk = nesk#get_instance()
   let [table, err] = nesk.get_table('zenei')
