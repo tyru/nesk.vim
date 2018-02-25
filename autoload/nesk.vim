@@ -9,6 +9,8 @@ let s:NONE = []
 " TODO: Global variable?
 let s:INITIAL_MODE = 'skk/kana'
 let s:KEEP_STATE = 1
+let s:DO_LOG = 1
+let s:LOG_FILE = expand('~/nesk.log')
 
 let s:nesk = s:NONE
 
@@ -43,6 +45,11 @@ function! s:new_nesk() abort
   let nesk.map_keys = function('s:Nesk_map_keys')
   let nesk.unmap_keys = function('s:Nesk_unmap_keys')
   let nesk.filter = function('s:Nesk_filter')
+  if s:DO_LOG && isdirectory(fnamemodify(s:LOG_FILE, ':h'))
+    let nesk.log = function('s:Nesk_log')
+  else
+    let nesk.log = function('s:Nesk_no_log')
+  endif
 
   return nesk
 endfunction
@@ -311,6 +318,12 @@ function! s:new_table(name, table) abort
   \}
 endfunction
 
+function! s:is_table(table) abort
+  return type(a:table) is# type({}) &&
+  \      type(get(a:table, '_raw_table', 0)) is# type({}) &&
+  \      type(get(a:table, 'name', 0)) is# type('')
+endfunction
+
 function! s:Table_get(key, else) abort dict
   return get(self._raw_table, a:key, a:else)
 endfunction
@@ -399,9 +412,27 @@ function! s:Nesk_filter(str) abort dict
   let state = states[-1]
   let in = nesk#new_string_reader(a:str)
   let out = nesk#new_string_writer()
-  while in.size() ># 0
-    let state = state.next(in, out)
-  endwhile
+  if s:DO_LOG
+    call self.log(printf('filter(): input=%s',
+    \                     string(a:str)))
+    while in.size() ># 0
+      call self.log(printf('  state=%s,in=%s,out=%s',
+      \                     s:state_string(state),
+      \                     string(in.peek(in.size())),
+      \                     string(out.to_string())))
+      let state = state.next(in, out)
+    endwhile
+    call self.log(printf('  state=%s,in=%s,out=%s',
+    \                     s:state_string(state),
+    \                     string(in.peek(in.size())),
+    \                     string(out.to_string())))
+    call self.log(printf('filter(): output=%s',
+    \                     string(out.to_string())))
+  else
+    while in.size() ># 0
+      let state = state.next(in, out)
+    endwhile
+  endif
   if out._err isnot# s:NONE
     echohl ErrorMsg
     echomsg a:err.error(1)
@@ -411,6 +442,32 @@ function! s:Nesk_filter(str) abort dict
   endif
   let states[-1] = state
   return out.to_string()
+endfunction
+
+" * Transform table object into '<table "{name}">'
+" * Transform Funcref
+function! s:state_string(obj) abort
+  if type(a:obj) is# type({})
+    if s:is_table(a:obj)
+      return '<table "' . a:obj.name . '">'
+    endif
+    let elems = []
+    for key in keys(a:obj)
+      let elems += [string(key) . ': ' . s:state_string(a:obj[key])]
+    endfor
+    return '{' . join(elems, ', ') . '}'
+  elseif type(a:obj) is# type(function('function'))
+    return substitute(string(a:obj), '^function(''[^'']\+''\zs, .*\ze)$', '', '')
+  else
+    return string(a:obj)
+  endif
+endfunction
+
+function! s:Nesk_log(msg) abort dict
+  call writefile([a:msg], s:LOG_FILE, 'a')
+endfunction
+
+function! s:Nesk_no_log(msg) abort dict
 endfunction
 
 function! nesk#new_string_reader(str) abort
