@@ -84,6 +84,14 @@ function! s:Nesk_disable() abort dict
   if !self.enabled()
     return ['', s:NONE]
   endif
+  let committed = ''
+  let [mode_name, err] = self.get_active_mode_name()
+  if err is# s:NONE
+    let [mode, err] = self.get_mode(mode_name)
+    if err is# s:NONE && has_key(mode.state, 'commit')
+      let committed = mode.state.commit()
+    endif
+  endif
   call self.set_states([])
   let self._active_mode_name = ''
   call self.unmap_keys()
@@ -93,14 +101,7 @@ function! s:Nesk_disable() abort dict
     " We have to use i_CTRL-^ .
     setlocal iminsert=0 imsearch=0
     redrawstatus
-    let [mode_name, err] = self.get_active_mode_name()
-    if err is# s:NONE
-      let [mode, err] = self.get_mode(mode_name)
-      if err is# s:NONE && has_key(mode, 'commit')
-        return [mode.commit() . "\<C-^>", s:NONE]
-      endif
-    endif
-    return ["\<C-^>", s:NONE]
+    return [committed . "\<C-^>", s:NONE]
   else
     setlocal iminsert=0 imsearch=0
     redrawstatus
@@ -194,10 +195,6 @@ function! s:validate_mode(mode) abort
   if has_key(a:mode, 'state')
     return s:validate_state('mode.state', a:mode.state)
   endif
-  " mode.commit (optional)
-  if has_key(a:mode, 'commit') && type(a:mode.commit) isnot# type(function('function'))
-    return nesk#error('mode.commit is not Funcref')
-  endif
   return s:NONE
 endfunction
 
@@ -205,8 +202,13 @@ function! s:validate_state(name, state) abort
   if type(a:state) isnot# type({})
     return nesk#error(a:name . ' is not Dictionary')
   endif
+  " mode.next
   if !has_key(a:state, 'next') || type(a:state.next) isnot# type(function('function'))
     return nesk#error(a:name . '.next is not Dictionary')
+  endif
+  " mode.state.commit (optional)
+  if has_key(a:state, 'commit') && type(a:state.commit) isnot# type(function('function'))
+    return nesk#error('mode.state.commit is not Funcref')
   endif
   return s:NONE
 endfunction
@@ -333,7 +335,7 @@ function! nesk#get_default_mapped_keys() abort
   return keys
 endfunction
 
-function! s:Nesk_filter(c) abort dict
+function! s:Nesk_filter(str) abort dict
   let [name, err] = self.get_active_mode_name()
   if err isnot# s:NONE
     call s:echomsg('ErrorMsg', err.error())
@@ -344,9 +346,62 @@ function! s:Nesk_filter(c) abort dict
     call s:echomsg('ErrorMsg', err.error())
     return ''
   endif
-  let old = deepcopy(mode.state)
-  let [mode.state, str] = mode.state.next(a:c)
+  let in = nesk#new_string_reader(a:str)
+  let out = nesk#new_string_writer()
+  while in.size() ># 0
+    let mode.state = mode.state.next(in, out)
+  endwhile
+  return out.to_string()
+endfunction
+
+function! nesk#new_string_reader(str) abort
+  return {
+  \ '_str': a:str,
+  \ '_pos': 0,
+  \ '_last_read': 0,
+  \ 'read': function('s:StringReader_read'),
+  \ 'peek': function('s:StringReader_peek'),
+  \ 'unread': function('s:StringReader_unread'),
+  \ 'size': function('s:StringReader_size'),
+  \}
+endfunction
+
+function! s:StringReader_read(n) abort dict
+  let str = self.peek(a:n)
+  let self._last_read = strlen(str)
+  let self._pos += self._last_read
   return str
+endfunction
+
+function! s:StringReader_peek(n) abort dict
+  return self._str[self._pos : self._pos + a:n - 1]
+endfunction
+
+" NOTE: `self._pos - self._last_read` must not be negative
+function! s:StringReader_unread() abort dict
+  let self._pos -= self._last_read
+endfunction
+
+" NOTE: `strlen(self._str) - self._pos` must not be negative
+function! s:StringReader_size() abort dict
+  return strlen(self._str) - self._pos
+endfunction
+
+
+function! nesk#new_string_writer(...) abort
+  return {
+  \ '_str': (a:0 && type(a:1) is# type('') ? a:1 : ''),
+  \ 'write': function('s:StringWriter_write'),
+  \ 'to_string': function('s:StringWriter_to_string'),
+  \}
+endfunction
+
+function! s:StringWriter_write(str) abort dict
+  let self._str .= a:str
+endfunction
+
+function! s:StringWriter_to_string() abort dict
+  return self._str
 endfunction
 
 
@@ -366,8 +421,8 @@ function! nesk#enabled() abort
   return nesk#get_instance().enabled()
 endfunction
 
-function! nesk#filter(c) abort
-  return nesk#get_instance().filter(a:c)
+function! nesk#filter(str) abort
+  return nesk#get_instance().filter(a:str)
 endfunction
 
 function! nesk#define_mode(name, mode) abort
