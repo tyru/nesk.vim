@@ -132,7 +132,6 @@ function! s:KanaNormalState_do_cancel(out) abort dict
     call a:out.write(bs)
     let self._buf = ''
   endif
-  call a:out.write("\<Esc>")
   return self
 endfunction
 
@@ -146,10 +145,16 @@ function! s:KanaNormalState_do_backspace(out) abort dict
 endfunction
 
 function! s:KanaNormalState_do_enter(out) abort dict
-  let bs = repeat("\<C-h>", strchars(self._buf))
-  let str = bs . "\<CR>"
-  let self._buf = ''
-  call a:out.write(str)
+  if self._buf isnot# ''
+    let bs = repeat("\<C-h>", strchars(self._buf))
+    call a:out.write(bs)
+    let pair = self._table.get(self._buf, nesk#error_none())
+    if pair isnot# nesk#error_none()
+      call a:out.write(pair[0])
+    endif
+    let self._buf = ''
+  endif
+  call a:out.write("\<CR>")
   return self
 endfunction
 

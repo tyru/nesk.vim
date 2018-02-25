@@ -161,12 +161,13 @@ function! s:Nesk_set_active_mode_name(name) abort dict
   if self._active_mode_name is# a:name
     return nesk#errorf('current mode is already "%s"', a:name)
   endif
-  let [_, err] = self.get_mode(a:name)
+  let [mode, err] = self.get_mode(a:name)
   if err isnot# s:NONE
     return nesk#wrap_error(err, printf('no such mode (%s)', a:name))
   endif
   let old = self._active_mode_name
   let self._active_mode_name = a:name
+  call self.set_states(a:name, [mode.initial_state])
   call self.send_event('mode-change', {'old': old, 'new': a:name})
   return s:NONE
 endfunction
@@ -417,6 +418,9 @@ function! s:StringReader_read(n) abort dict
 endfunction
 
 function! s:StringReader_peek(n) abort dict
+  if a:n <=# 0
+    return ''
+  endif
   return self._str[self._pos : self._pos + a:n - 1]
 endfunction
 
