@@ -17,7 +17,7 @@ function! s:new_nesk() abort
   let nesk = {}
 
   let nesk._loaded_rtp = 0
-  let nesk._states = []
+  let nesk._states = {}
   let nesk._modes = {}
   let nesk._tables = {}
   let nesk._event_handlers = {}
@@ -28,9 +28,12 @@ function! s:new_nesk() abort
   let nesk.toggle = function('s:Nesk_toggle')
   let nesk.enabled = function('s:Nesk_enabled')
   let nesk.load_modes_in_rtp = function('s:Nesk_load_modes_in_rtp')
+  let nesk.init_active_mode = function('s:Nesk_init_active_mode')
   let nesk.get_active_mode_name = function('s:Nesk_get_active_mode_name')
   let nesk.set_active_mode_name = function('s:Nesk_set_active_mode_name')
   let nesk.set_states = function('s:Nesk_set_states')
+  let nesk.clear_states = function('s:Nesk_clear_states')
+  let nesk.get_active_states = function('s:Nesk_get_active_states')
   let nesk.get_mode = function('s:Nesk_get_mode')
   let nesk.define_mode = function('s:Nesk_define_mode')
   let nesk.get_table = function('s:Nesk_get_table')
@@ -69,7 +72,7 @@ function! s:Nesk_enable() abort dict
       autocmd InsertLeave <buffer> call nesk#disable()
     endif
   augroup END
-  call self.set_states([mode])
+  call self.set_states(mode_name, [mode.initial_state])
   let err = self.set_active_mode_name(mode_name)
   if err isnot# s:NONE
     return ['', err]
@@ -94,14 +97,11 @@ function! s:Nesk_disable() abort dict
     return ['', s:NONE]
   endif
   let committed = ''
-  let [mode_name, err] = self.get_active_mode_name()
-  if err is# s:NONE
-    let [mode, err] = self.get_mode(mode_name)
-    if err is# s:NONE && has_key(mode.state, 'commit')
-      let committed = mode.state.commit()
-    endif
+  let [states, err] = self.get_active_states()
+  if err is# s:NONE && has_key(states[-1], 'commit')
+    let committed = states[-1].commit()
   endif
-  call self.set_states([])
+  call self.clear_states()
   let self._active_mode_name = ''
   call self.unmap_keys()
   if mode() =~# '^[ic]$'
@@ -171,8 +171,24 @@ function! s:Nesk_set_active_mode_name(name) abort dict
   return s:NONE
 endfunction
 
-function! s:Nesk_set_states(states) abort dict
-  let self._states = a:states
+function! s:Nesk_set_states(mode_name, states) abort dict
+  let self._states[a:mode_name] = a:states
+endfunction
+
+function! s:Nesk_clear_states() abort dict
+  let self._states = {}
+endfunction
+
+function! s:Nesk_get_active_states() abort dict
+  let [mode_name, err] = self.get_active_mode_name()
+  if err isnot# s:NONE
+    return [s:NONE, err]
+  endif
+  let states = get(self._states, mode_name, [])
+  if empty(states)
+    return [s:NONE, nesk#error('no active state')]
+  endif
+  return [states, s:NONE]
 endfunction
 
 function! s:Nesk_get_mode(name) abort dict
@@ -180,7 +196,7 @@ function! s:Nesk_get_mode(name) abort dict
   if mode is# s:NONE
     return [s:NONE, nesk#errorf('cannot load mode "%s"', a:name)]
   endif
-  return [mode, s:NONE]
+  return [deepcopy(mode), s:NONE]
 endfunction
 
 function! s:Nesk_define_mode(name, mode) abort dict
@@ -243,7 +259,7 @@ function! s:Nesk_get_table(name) abort dict
   if table is# s:NONE
     return [s:NONE, nesk#errorf('cannot load table "%s"', a:name)]
   endif
-  return [table, s:NONE]
+  return [deepcopy(table), s:NONE]
 endfunction
 
 function! s:Nesk_define_table(name, table) abort dict
@@ -366,16 +382,18 @@ function! s:Nesk_filter(str) abort dict
     call s:echomsg('ErrorMsg', err.error())
     return ''
   endif
-  let [mode, err] = self.get_mode(name)
+  let [states, err] = self.get_active_states()
   if err isnot# s:NONE
     call s:echomsg('ErrorMsg', err.error())
     return ''
   endif
+  let state = states[-1]
   let in = nesk#new_string_reader(a:str)
   let out = nesk#new_string_writer()
   while in.size() ># 0
-    let mode.state = mode.state.next(in, out)
+    let state = state.next(in, out)
   endwhile
+  let states[-1] = state
   return out.to_string()
 endfunction
 
