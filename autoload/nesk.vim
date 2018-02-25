@@ -8,6 +8,7 @@ let s:NONE = []
 
 " TODO: Global variable?
 let s:INITIAL_MODE = 'skk/kana'
+let s:KEEP_STATE = 1
 
 let s:nesk = s:NONE
 
@@ -60,6 +61,14 @@ function! s:Nesk_enable() abort dict
     call s:echomsg('ErrorMsg', err.error())
     return ['', s:NONE]
   endif
+  augroup nesk-disable-hook
+    autocmd!
+    if s:KEEP_STATE
+      autocmd InsertLeave <buffer> call nesk#init_active_mode()
+    else
+      autocmd InsertLeave <buffer> call nesk#disable()
+    endif
+  augroup END
   call self.set_states([mode])
   let err = self.set_active_mode_name(mode_name)
   if err isnot# s:NONE
@@ -123,6 +132,22 @@ function! s:Nesk_load_modes_in_rtp() abort dict
   endif
   runtime! autoload/nesk/mode/*.vim
   let self._loaded_rtp = 1
+endfunction
+
+function! s:Nesk_init_active_mode() abort dict
+  let [mode_name, err] = self.get_active_mode_name()
+  if err isnot# s:NONE
+    let err = nesk#wrap_error(err, 'nesk#init_active_mode()')
+    call s:echomsg('ErrorMsg', err.error())
+    return
+  endif
+  let [mode, err] = self.get_mode(mode_name)
+  if err isnot# s:NONE
+    let err = nesk#wrap_error(err, 'nesk#init_active_mode()')
+    call s:echomsg('ErrorMsg', err.error())
+    return
+  endif
+  call self.set_states(mode_name, [mode.initial_state])
 endfunction
 
 function! s:Nesk_get_active_mode_name() abort dict
@@ -419,6 +444,10 @@ endfunction
 
 function! nesk#enabled() abort
   return nesk#get_instance().enabled()
+endfunction
+
+function! nesk#init_active_mode() abort
+  return nesk#get_instance().init_active_mode()
 endfunction
 
 function! nesk#filter(str) abort
