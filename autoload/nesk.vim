@@ -143,6 +143,9 @@ function! s:Nesk_load_modes_in_rtp() abort dict
 endfunction
 
 function! s:Nesk_init_active_mode() abort dict
+  if !self.enabled()
+    return
+  endif
   let [mode_name, err] = self.get_active_mode_name()
   if err isnot# s:NONE
     let err = nesk#wrap_error(err, 'nesk#init_active_mode()')
