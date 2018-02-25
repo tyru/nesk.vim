@@ -9,7 +9,7 @@ let s:NONE = []
 " TODO: Global variable?
 let s:INITIAL_MODE = 'skk/kana'
 let s:KEEP_STATE = 1
-let s:DO_LOG = 1
+let s:DO_LOG = 0
 let s:LOG_FILE = expand('~/nesk.log')
 
 let s:nesk = s:NONE
