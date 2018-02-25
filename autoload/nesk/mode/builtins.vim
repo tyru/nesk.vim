@@ -65,6 +65,10 @@ function! s:KanaNormalState_next(in, out) abort dict
       return self.do_backspace(a:out)
     endif
     return self
+  elseif c is# 'L' && self._buf is# ''
+    return nesk#new_mode_change_state('skk/zenei')
+  elseif c is# 'l' && self._buf is# ''
+    return nesk#new_mode_change_state('skk/ascii')
   elseif c =~# '^[A-Z]$'
     let rest = a:in.read(a:in.size())
     let in = nesk#new_string_reader(';' . tolower(c) . rest)
@@ -183,11 +187,7 @@ endfunction
 function! s:AsciiState_next(in, out) abort dict
   let c = a:in.read(1)
   if c is# "\<C-j>"
-    let nesk = nesk#get_instance()
-    let err = nesk.set_active_mode_name('skk/kana')
-    if err isnot# nesk#error_none()
-      return a:out.error(nesk#wrap_error(err, 'Cannot set mode to skk/kana'))
-    endif
+    return nesk#new_mode_change_state('skk/kana')
   else
     call a:out.write(c)
   endif
@@ -224,11 +224,7 @@ endfunction
 function! s:ZeneiTable_next1(in, out) abort dict
   let c = a:in.read(1)
   if c is# "\<C-j>"
-    let nesk = nesk#get_instance()
-    let err = nesk.set_active_mode_name('skk/kana')
-    if err isnot# nesk#error_none()
-      return a:out.error(nesk#wrap_error(err, 'Cannot set mode to skk/kana'))
-    endif
+    return nesk#new_mode_change_state('skk/kana')
   else
     call a:out.write(self._table.get(c, c))
   endif

@@ -35,6 +35,7 @@ function! s:new_nesk() abort
   let nesk.clear_states = function('s:Nesk_clear_states')
   let nesk.get_active_states = function('s:Nesk_get_active_states')
   let nesk.get_mode = function('s:Nesk_get_mode')
+  let nesk.get_active_mode = function('s:Nesk_get_active_mode')
   let nesk.define_mode = function('s:Nesk_define_mode')
   let nesk.get_table = function('s:Nesk_get_table')
   let nesk.define_table = function('s:Nesk_define_table')
@@ -200,6 +201,18 @@ function! s:Nesk_get_mode(name) abort dict
   return [deepcopy(mode), s:NONE]
 endfunction
 
+function! s:Nesk_get_active_mode() abort dict
+  let [mode_name, err] = self.get_active_mode_name()
+  if err isnot# s:NONE
+    return [s:NONE, err]
+  endif
+  let [mode, err] = self.get_mode(mode_name)
+  if err isnot# s:NONE
+    return [s:NONE, err]
+  endif
+  return [mode, s:NONE]
+endfunction
+
 function! s:Nesk_define_mode(name, mode) abort dict
   let err = s:validate_define_mode_args(self, a:name, a:mode)
   if err isnot# s:NONE
@@ -244,11 +257,11 @@ function! s:validate_state(state, name) abort
   if type(a:state) isnot# type({})
     return nesk#error(a:name . ' is not Dictionary')
   endif
-  " mode.next
+  " state.next
   if !has_key(a:state, 'next') || type(a:state.next) isnot# type(function('function'))
     return nesk#error(a:name . '.next is not Funcref')
   endif
-  " mode.state.commit (optional)
+  " state.commit (optional)
   if has_key(a:state, 'commit') && type(a:state.commit) isnot# type(function('function'))
     return nesk#error(a:name . '.commit is not Funcref')
   endif
@@ -378,11 +391,6 @@ function! nesk#get_default_mapped_keys() abort
 endfunction
 
 function! s:Nesk_filter(str) abort dict
-  let [name, err] = self.get_active_mode_name()
-  if err isnot# s:NONE
-    call s:echomsg('ErrorMsg', err.error())
-    return ''
-  endif
   let [states, err] = self.get_active_states()
   if err isnot# s:NONE
     call s:echomsg('ErrorMsg', err.error())
@@ -465,13 +473,14 @@ function! s:StringWriter_error(err) abort dict
   return s:NOP_STATE
 endfunction
 
-let s:NOP_STATE = {'next': function('s:NopState_next')}
+let s:NOP_STATE = {}
 
 " Read all string from a:in to stop the nesk.filter()'s loop
 function! s:NopState_next(in, out) abort dict
   call a:in.read(a:in.size())
   return self
 endfunction
+let s:NOP_STATE.next = function('s:NopState_next')
 
 
 function! nesk#enable() abort
@@ -496,6 +505,29 @@ endfunction
 
 function! nesk#filter(str) abort
   return nesk#get_instance().filter(a:str)
+endfunction
+
+
+function! nesk#new_mode_change_state(mode_name) abort
+  return {
+  \ '_mode_name': a:mode_name,
+  \ 'next': function('s:ModeChangeState_next'),
+  \}
+endfunction
+
+function! s:ModeChangeState_next(in, out) abort dict
+  let nesk = nesk#get_instance()
+  let err = nesk.set_active_mode_name(self._mode_name)
+  if err isnot# s:NONE
+    let err = nesk#wrap_error(err, 'Cannot set active mode to ' . self._mode_name)
+    return a:out.error(err)
+  endif
+  let [mode, err] = nesk.get_active_mode()
+  if err isnot# s:NONE
+    let err = nesk#wrap_error(err, 'Cannot get active mode')
+    return a:out.error(err)
+  endif
+  return mode.initial_state
 endfunction
 
 function! nesk#define_mode(name, mode) abort
