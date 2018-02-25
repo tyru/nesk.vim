@@ -22,7 +22,6 @@ function! s:new_nesk() abort
   let nesk._states = {}
   let nesk._modes = {}
   let nesk._tables = {}
-  let nesk._event_handlers = {}
   let nesk._active_mode_name = ''
 
   let nesk.enable = function('s:Nesk_enable')
@@ -41,7 +40,6 @@ function! s:new_nesk() abort
   let nesk.define_mode = function('s:Nesk_define_mode')
   let nesk.get_table = function('s:Nesk_get_table')
   let nesk.define_table = function('s:Nesk_define_table')
-  let nesk.send_event = function('s:Nesk_send_event')
   let nesk.map_keys = function('s:Nesk_map_keys')
   let nesk.unmap_keys = function('s:Nesk_unmap_keys')
   let nesk.filter = function('s:Nesk_filter')
@@ -179,7 +177,6 @@ function! s:Nesk_set_active_mode_name(name) abort dict
   let old = self._active_mode_name
   let self._active_mode_name = a:name
   call self.set_states(a:name, [mode.initial_state])
-  call self.send_event('mode-change', {'old': old, 'new': a:name})
   return s:NONE
 endfunction
 
@@ -350,14 +347,6 @@ function! s:Table_search(key, ...) abort dict
     endfor
     return d
   endif
-endfunction
-
-function! s:Nesk_send_event(name, value) abort dict
-  for handler in get(self._event_handlers, a:name, [])
-    if type(handler) is# type(function('function'))
-      call call(handler, [a:value])
-    endif
-  endfor
 endfunction
 
 function! s:Nesk_map_keys() abort dict
