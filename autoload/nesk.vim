@@ -62,7 +62,7 @@ function! s:Nesk_enable() abort dict
   let mode_name = s:INITIAL_MODE
   let [mode, err] = self.get_mode(mode_name)
   if err isnot# s:NONE
-    call s:echomsg('ErrorMsg', err.error())
+    call s:echomsg('ErrorMsg', err.error(1))
     return ['', s:NONE]
   endif
   augroup nesk-disable-hook
@@ -139,13 +139,13 @@ function! s:Nesk_init_active_mode() abort dict
   let [mode_name, err] = self.get_active_mode_name()
   if err isnot# s:NONE
     let err = nesk#wrap_error(err, 'nesk#init_active_mode()')
-    call s:echomsg('ErrorMsg', err.error())
+    call s:echomsg('ErrorMsg', err.error(1))
     return
   endif
   let [mode, err] = self.get_mode(mode_name)
   if err isnot# s:NONE
     let err = nesk#wrap_error(err, 'nesk#init_active_mode()')
-    call s:echomsg('ErrorMsg', err.error())
+    call s:echomsg('ErrorMsg', err.error(1))
     return
   endif
   call self.set_states(mode_name, [mode.initial_state])
@@ -280,7 +280,7 @@ function! s:Nesk_define_table(name, table) abort dict
   let err = s:validate_define_table_args(self, a:name, a:table)
   if err isnot# s:NONE
     let err = nesk#wrap_error(err, 'nesk#define_table()')
-    call s:echomsg('ErrorMsg', err.error())
+    call s:echomsg('ErrorMsg', err.error(1))
   endif
   let self._tables[a:name] = s:new_table(a:name, a:table)
 endfunction
@@ -393,7 +393,7 @@ endfunction
 function! s:Nesk_filter(str) abort dict
   let [states, err] = self.get_active_states()
   if err isnot# s:NONE
-    call s:echomsg('ErrorMsg', err.error())
+    call s:echomsg('ErrorMsg', err.error(1))
     return ''
   endif
   let state = states[-1]
