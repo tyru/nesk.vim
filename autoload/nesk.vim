@@ -533,6 +533,47 @@ function! s:StringWriter_error(err) abort dict
   return s:NOP_STATE
 endfunction
 
+
+function! nesk#new_mode_change_state(mode_name) abort
+  return {
+  \ '_mode_name': a:mode_name,
+  \ 'next': function('s:ModeChangeState_next'),
+  \}
+endfunction
+
+function! s:ModeChangeState_next(in, out) abort dict
+  let nesk = nesk#get_instance()
+  let err = nesk.set_active_mode_name(self._mode_name)
+  if err isnot# s:NONE
+    let err = nesk#wrap_error(err, 'Cannot set active mode to ' . self._mode_name)
+    return a:out.error(err)
+  endif
+  let [mode, err] = nesk.get_active_mode()
+  if err isnot# s:NONE
+    let err = nesk#wrap_error(err, 'Cannot get active mode')
+    return a:out.error(err)
+  endif
+  return mode.initial_state
+endfunction
+
+function! nesk#new_disable_state() abort
+  return {
+  \ 'next': function('s:DisableState_next'),
+  \}
+endfunction
+
+function! s:DisableState_next(in, out) abort dict
+  " Read all string to stop nesk.filter() loop
+  call a:in.read(a:in.size())
+  let nesk = nesk#get_instance()
+  let [str, err] = nesk.disable()
+  if err isnot# nesk#error_none()
+    return a:out.error(nesk#wrap_error(err, 'Cannot disable skk'))
+  endif
+  call a:out.write(str)
+  return s:NOP_STATE
+endfunction
+
 let s:NOP_STATE = {}
 
 " Read all string from a:in to stop the nesk.filter()'s loop
@@ -567,28 +608,6 @@ function! nesk#filter(str) abort
   return nesk#get_instance().filter(a:str)
 endfunction
 
-
-function! nesk#new_mode_change_state(mode_name) abort
-  return {
-  \ '_mode_name': a:mode_name,
-  \ 'next': function('s:ModeChangeState_next'),
-  \}
-endfunction
-
-function! s:ModeChangeState_next(in, out) abort dict
-  let nesk = nesk#get_instance()
-  let err = nesk.set_active_mode_name(self._mode_name)
-  if err isnot# s:NONE
-    let err = nesk#wrap_error(err, 'Cannot set active mode to ' . self._mode_name)
-    return a:out.error(err)
-  endif
-  let [mode, err] = nesk.get_active_mode()
-  if err isnot# s:NONE
-    let err = nesk#wrap_error(err, 'Cannot get active mode')
-    return a:out.error(err)
-  endif
-  return mode.initial_state
-endfunction
 
 function! nesk#define_mode(name, mode) abort
   return nesk#get_instance().define_mode(a:name, a:mode)

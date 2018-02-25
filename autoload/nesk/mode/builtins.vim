@@ -49,7 +49,10 @@ function! s:KanaNormalState_next(in, out) abort dict
   let c = a:in.read(1)
   if c is# "\<C-j>"
     if self._buf is# ''
-      return s:do_disable(self, a:out)
+      " Not to stop nesk.filter() loop,
+      " at least 1 byte needs to exist in a:in
+      call a:in.unread()
+      return nesk#new_disable_state()
     else
       return s:do_commit(self, a:out)
     endif
@@ -159,16 +162,6 @@ endfunction
 function! s:do_commit(state, out) abort
   call a:out.write(a:state._buf)
   let a:state._buf = ''
-endfunction
-
-function! s:do_disable(state, out) abort
-  let nesk = nesk#get_instance()
-  let [str, err] = nesk.disable()
-  if err isnot# nesk#error_none()
-    return a:out.error(nesk#wrap_error(err, 'Cannot disable skk'))
-  endif
-  call a:out.write(str)
-  return a:state
 endfunction
 
 " }}}
