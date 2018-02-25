@@ -394,6 +394,13 @@ function! s:Nesk_filter(str) abort dict
   while in.size() ># 0
     let state = state.next(in, out)
   endwhile
+  if out._err isnot# s:NONE
+    echohl ErrorMsg
+    echomsg a:err.error(1)
+    echohl None
+    sleep 2
+    return ''
+  endif
   let states[-1] = state
   return out.to_string()
 endfunction
@@ -438,8 +445,10 @@ endfunction
 function! nesk#new_string_writer(...) abort
   return {
   \ '_str': (a:0 && type(a:1) is# type('') ? a:1 : ''),
+  \ '_err': s:NONE,
   \ 'write': function('s:StringWriter_write'),
   \ 'to_string': function('s:StringWriter_to_string'),
+  \ 'error': function('s:StringWriter_error'),
   \}
 endfunction
 
@@ -449,6 +458,19 @@ endfunction
 
 function! s:StringWriter_to_string() abort dict
   return self._str
+endfunction
+
+function! s:StringWriter_error(err) abort dict
+  let self._err = a:err
+  return s:NOP_STATE
+endfunction
+
+let s:NOP_STATE = {'next': function('s:NopState_next')}
+
+" Read all string from a:in to stop the nesk.filter()'s loop
+function! s:NopState_next(in, out) abort dict
+  call a:in.read(a:in.size())
+  return self
 endfunction
 
 
@@ -503,6 +525,9 @@ function! nesk#error(msg) abort
 endfunction
 
 function! nesk#wrap_error(err, msg) abort
+  if a:err is# s:NONE
+    return nesk#error(a:msg)
+  endif
   return {
   \ 'error': function('s:Error_error'),
   \ 'msg': printf('%s: %s', a:msg, a:err.error()),

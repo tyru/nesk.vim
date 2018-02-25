@@ -25,11 +25,7 @@ function! s:KanaState_next(in, out) abort
   let nesk = nesk#get_instance()
   let [table, err] = nesk.get_table('kana')
   if err isnot# nesk#error_none()
-    echohl ErrorMsg
-    echomsg 'Cannot load kana table'
-    echomsg err.error(1)
-    echohl None
-    sleep 1
+    return a:out.error(nesk#wrap_error(err, 'Cannot load kana table'))
   endif
 
   let normal_state = s:new_kana_normal_state(table)
@@ -167,11 +163,7 @@ function! s:KanaNormalState_do_disable(out) abort dict
   let nesk = nesk#get_instance()
   let [str, err] = nesk.disable()
   if err isnot# nesk#error_none()
-    echohl ErrorMsg
-    echomsg 'Cannot disable skk'
-    echomsg err.error(1)
-    echohl None
-    sleep 1
+    return a:out.error(nesk#wrap_error(err, 'Cannot disable skk'))
   endif
   call a:out.write(str)
   return self
@@ -194,11 +186,7 @@ function! s:AsciiState_next(in, out) abort dict
     let nesk = nesk#get_instance()
     let err = nesk.set_active_mode_name('skk/kana')
     if err isnot# nesk#error_none()
-      echohl ErrorMsg
-      echomsg 'Cannot set mode to skk/kana'
-      echomsg err.error(1)
-      echohl None
-      sleep 1
+      return a:out.error(nesk#wrap_error(err, 'Cannot set mode to skk/kana'))
     endif
   else
     call a:out.write(c)
@@ -223,11 +211,7 @@ function! s:ZeneiTable_next0(in, out) abort dict
   let nesk = nesk#get_instance()
   let [table, err] = nesk.get_table('zenei')
   if err isnot# nesk#error_none()
-    echohl ErrorMsg
-    echomsg 'Cannot load zenei table'
-    echomsg err.error(1)
-    echohl None
-    sleep 1
+    return a:out.error(nesk#wrap_error(err, 'Cannot load zenei table'))
   endif
 
   let next_state = {
@@ -243,11 +227,7 @@ function! s:ZeneiTable_next1(in, out) abort dict
     let nesk = nesk#get_instance()
     let err = nesk.set_active_mode_name('skk/kana')
     if err isnot# nesk#error_none()
-      echohl ErrorMsg
-      echomsg 'Cannot set mode to skk/kana'
-      echomsg err.error(1)
-      echohl None
-      sleep 1
+      return a:out.error(nesk#wrap_error(err, 'Cannot set mode to skk/kana'))
     endif
   else
     call a:out.write(self._table.get(c, c))
