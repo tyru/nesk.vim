@@ -223,7 +223,8 @@ endfunction
 function! s:Nesk_define_mode(name, mode) abort dict
   let err = s:validate_define_mode_args(self, a:name, a:mode)
   if err isnot# s:NONE
-    return nesk#wrap_error(err, 'nesk#define_mode()')
+    let err = nesk#wrap_error(err, 'nesk#define_mode()')
+    call s:echomsg('ErrorMsg', err.error(1))
   endif
   if !has_key(a:mode, 'state')
     let a:mode.state = a:mode.initial_state
@@ -427,7 +428,7 @@ function! s:Nesk_filter(str) abort dict
   endif
   if out._err isnot# s:NONE
     echohl ErrorMsg
-    echomsg a:err.error(1)
+    echomsg out._err.error(1)
     echohl None
     sleep 2
     return ''
