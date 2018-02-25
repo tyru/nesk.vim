@@ -228,28 +228,28 @@ function! s:validate_mode(mode) abort
   if !has_key(a:mode, 'initial_state')
     return nesk#error('mode.initial_state does not exist')
   endif
-  let err = s:validate_state('mode.initial_state', a:mode.initial_state)
+  let err = s:validate_state(a:mode.initial_state, 'mode.initial_state')
   if err isnot# s:NONE
     return err
   endif
   " mode.state (optional)
   if has_key(a:mode, 'state')
-    return s:validate_state('mode.state', a:mode.state)
+    return s:validate_state(a:mode.state, 'mode.state')
   endif
   return s:NONE
 endfunction
 
-function! s:validate_state(name, state) abort
+function! s:validate_state(state, name) abort
   if type(a:state) isnot# type({})
     return nesk#error(a:name . ' is not Dictionary')
   endif
   " mode.next
   if !has_key(a:state, 'next') || type(a:state.next) isnot# type(function('function'))
-    return nesk#error(a:name . '.next is not Dictionary')
+    return nesk#error(a:name . '.next is not Funcref')
   endif
   " mode.state.commit (optional)
   if has_key(a:state, 'commit') && type(a:state.commit) isnot# type(function('function'))
-    return nesk#error('mode.state.commit is not Funcref')
+    return nesk#error(a:name . '.commit is not Funcref')
   endif
   return s:NONE
 endfunction
