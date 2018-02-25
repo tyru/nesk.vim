@@ -54,7 +54,11 @@ endfunction
 function! s:KanaNormalState_next(in, out) abort dict
   let c = a:in.read(1)
   if c is# "\<C-j>"
-    return self.do_commit(a:out)
+    if self._buf is# ''
+      return self.do_disable(a:out)
+    else
+      return self.do_commit(a:out)
+    endif
   elseif c is# "\<CR>"
     return self.do_enter(a:out)
   elseif c is# "\<C-h>"
