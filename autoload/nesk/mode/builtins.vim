@@ -38,12 +38,6 @@ function! s:new_kana_normal_state(table) abort
   \ '_buf': '',
   \ 'commit': function('s:KanaNormalState_commit'),
   \ 'next': function('s:KanaNormalState_next'),
-  \ 'do_escape': function('s:KanaNormalState_do_escape'),
-  \ 'do_cancel': function('s:KanaNormalState_do_cancel'),
-  \ 'do_disable': function('s:KanaNormalState_do_disable'),
-  \ 'do_commit': function('s:KanaNormalState_do_commit'),
-  \ 'do_backspace': function('s:KanaNormalState_do_backspace'),
-  \ 'do_enter': function('s:KanaNormalState_do_enter'),
   \}
 endfunction
 
@@ -55,18 +49,18 @@ function! s:KanaNormalState_next(in, out) abort dict
   let c = a:in.read(1)
   if c is# "\<C-j>"
     if self._buf is# ''
-      return self.do_disable(a:out)
+      return s:do_disable(self, a:out)
     else
-      return self.do_commit(a:out)
+      return s:do_commit(self, a:out)
     endif
   elseif c is# "\<CR>"
-    return self.do_enter(a:out)
+    return s:do_enter(self, a:out)
   elseif c is# "\<C-h>"
-    return self.do_backspace(a:out)
+    return s:do_backspace(self, a:out)
   elseif c is# "\x80"    " backspace is \x80 k b
     call a:in.unread()
     if a:in.read(3) is# "\<BS>"
-      return self.do_backspace(a:out)
+      return s:do_backspace(self, a:out)
     endif
     return self
   elseif c is# 'L' && self._buf is# ''
@@ -86,9 +80,9 @@ function! s:KanaNormalState_next(in, out) abort dict
     call a:out.write(str)
     return self
   elseif c is# "\<Esc>"
-    return self.do_escape(a:out)
+    return s:do_escape(self, a:out)
   elseif c is# "\<C-g>"
-    return self.do_cancel(a:out)
+    return s:do_cancel(self, a:out)
   else
     let cands = self._table.search(self._buf . c)
     if empty(cands)
@@ -116,65 +110,65 @@ function! s:KanaNormalState_next(in, out) abort dict
   endif
 endfunction
 
-function! s:KanaNormalState_do_escape(out) abort dict
-  if self._buf isnot# ''
-    let bs = repeat("\<C-h>", strchars(self._buf))
+function! s:do_escape(state, out) abort
+  if a:state._buf isnot# ''
+    let bs = repeat("\<C-h>", strchars(a:state._buf))
     call a:out.write(bs)
-    let pair = self._table.get(self._buf, nesk#error_none())
+    let pair = a:state._table.get(a:state._buf, nesk#error_none())
     if pair isnot# nesk#error_none()
       call a:out.write(pair[0])
     endif
-    let self._buf = ''
+    let a:state._buf = ''
   endif
   call a:out.write("\<Esc>")
-  return self
+  return a:state
 endfunction
 
-function! s:KanaNormalState_do_cancel(out) abort dict
-  if self._buf isnot# ''
-    let bs = repeat("\<C-h>", strchars(self._buf))
+function! s:do_cancel(state, out) abort
+  if a:state._buf isnot# ''
+    let bs = repeat("\<C-h>", strchars(a:state._buf))
     call a:out.write(bs)
-    let self._buf = ''
+    let a:state._buf = ''
   endif
-  return self
+  return a:state
 endfunction
 
-function! s:KanaNormalState_do_backspace(out) abort dict
+function! s:do_backspace(state, out) abort
   let str = "\<C-h>"
-  if self._buf isnot# ''
-    let self._buf = strcharpart(self._buf, 0, strchars(self._buf)-1)
+  if a:state._buf isnot# ''
+    let a:state._buf = strcharpart(a:state._buf, 0, strchars(a:state._buf)-1)
   endif
   call a:out.write(str)
-  return self
+  return a:state
 endfunction
 
-function! s:KanaNormalState_do_enter(out) abort dict
-  if self._buf isnot# ''
-    let bs = repeat("\<C-h>", strchars(self._buf))
+function! s:do_enter(state, out) abort
+  if a:state._buf isnot# ''
+    let bs = repeat("\<C-h>", strchars(a:state._buf))
     call a:out.write(bs)
-    let pair = self._table.get(self._buf, nesk#error_none())
+    let pair = a:state._table.get(a:state._buf, nesk#error_none())
     if pair isnot# nesk#error_none()
       call a:out.write(pair[0])
     endif
-    let self._buf = ''
+    let a:state._buf = ''
   endif
   call a:out.write("\<CR>")
-  return self
+  return a:state
 endfunction
 
-function! s:KanaNormalState_do_commit(out) abort dict
-  call a:out.write(self._buf)
-  let self._buf = ''
+function! s:do_commit(state, out) abort
+  call a:out.write(a:state._buf)
+  let a:state._buf = ''
 endfunction
 
-function! s:KanaNormalState_do_disable(out) abort dict
+function! s:do_disable(state, out) abort
   let nesk = nesk#get_instance()
   let [str, err] = nesk.disable()
   if err isnot# nesk#error_none()
     return a:out.error(nesk#wrap_error(err, 'Cannot disable skk'))
   endif
   call a:out.write(str)
-  return self
+  return a:state
 endfunction
 
 " }}}
