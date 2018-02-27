@@ -164,10 +164,14 @@ function! s:TableNormalState_next(in, out) abort dict
   elseif c is# "\<C-g>"
     return s:do_cancel(self, a:out)
   else
-    let cands = self._table.search(self._buf . c)
+    let [cands, err] = self._table.search(self._buf . c)
+    if err isnot# nesk#error_none()
+      " This must not be occurred in this table object
+      return a:out.error(nesk#wrap_error(err, 'table.search() returned non-nil error'))
+    endif
     if empty(cands)
-      let pair = self._table.get(self._buf, nesk#error_none())
-      if pair is# nesk#error_none()
+      let [pair, err] = self._table.get(self._buf)
+      if err is# nesk#error_no_results()
         let bs = repeat("\<C-h>", strchars(self._buf))
         let str = bs . c
         let self._buf = c
@@ -194,8 +198,8 @@ function! s:do_escape(state, out) abort
   if a:state._buf isnot# ''
     let bs = repeat("\<C-h>", strchars(a:state._buf))
     call a:out.write(bs)
-    let pair = a:state._table.get(a:state._buf, nesk#error_none())
-    if pair isnot# nesk#error_none()
+    let [pair, err] = a:state._table.get(a:state._buf)
+    if err isnot# nesk#error_no_results()
       call a:out.write(pair[0])
     endif
     let a:state._buf = ''
@@ -226,8 +230,8 @@ function! s:do_enter(state, out) abort
   if a:state._buf isnot# ''
     let bs = repeat("\<C-h>", strchars(a:state._buf))
     call a:out.write(bs)
-    let pair = a:state._table.get(a:state._buf, nesk#error_none())
-    if pair isnot# nesk#error_none()
+    let [pair, err] = a:state._table.get(a:state._buf)
+    if err isnot# nesk#error_no_results()
       call a:out.write(pair[0])
     endif
     let a:state._buf = ''
@@ -295,7 +299,8 @@ function! s:ZeneiTable_next1(in, out) abort dict
   if c is# "\<C-j>"
     return nesk#new_mode_change_state('skk/kana')
   else
-    call a:out.write(self._table.get(c, c))
+    let [str, err] = self._table.get(c)
+    call a:out.write(err is# nesk#error_no_results() ? c : str)
   endif
   return self
 endfunction

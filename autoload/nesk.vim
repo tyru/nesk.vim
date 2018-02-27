@@ -4,15 +4,19 @@ let s:save_cpo = &cpo
 set cpo&vim
 
 
-let s:NONE = []
+function! s:initialized() abort
+  let s:NONE = []
 
-" TODO: Global variable?
-let s:INITIAL_MODE = 'skk/kana'
-let s:KEEP_STATE = 1
-let s:DO_LOG = 0
-let s:LOG_FILE = expand('~/nesk.log')
+  let s:NO_RESULTS_ERROR = nesk#error('no results', '')
 
-let s:nesk = s:NONE
+  " TODO: Global variable?
+  let s:INITIAL_MODE = 'skk/kana'
+  let s:KEEP_STATE = 1
+  let s:DO_LOG = 0
+  let s:LOG_FILE = expand('~/nesk.log')
+
+  let s:nesk = s:NONE
+endfunction
 
 
 function! s:new_nesk() abort
@@ -316,20 +320,24 @@ function! s:is_table(table) abort
   \      type(get(a:table, 'search', 0)) is# v:t_func
 endfunction
 
-function! s:Table_get(key, else) abort dict
-  return get(self._raw_table, a:key, a:else)
+function! s:Table_get(key) abort dict
+  if has_key(self._raw_table, a:key)
+    return [self._raw_table[a:key], s:NONE]
+  endif
+  return [s:NONE, nesk#error_no_results()]
 endfunction
 
 function! s:Table_search(prefix, ...) abort dict
   if a:0 is# 0 || a:1 <# 0
     let end = max([len(a:prefix) - 1, 0])
-    return s:fold(keys(self._raw_table), {
+    let result = s:fold(keys(self._raw_table), {
     \ result,key ->
     \   key[: end] is# a:prefix ?
     \     result + [[key, self._raw_table[key]]] : result
     \}, [])
+    return [result, s:NONE]
   elseif a:1 is# 0
-    return []
+    return [[], s:NONE]
   else
     let result = []
     let end = max([len(a:prefix) - 1, 0])
@@ -337,11 +345,11 @@ function! s:Table_search(prefix, ...) abort dict
       if key[: end] is# a:prefix
         let result += [[key, self._raw_table[key]]]
         if len(result) >=# a:1
-          return result
+          return [result, s:NONE]
         endif
       endif
     endfor
-    return result
+    return [result, s:NONE]
   endif
 endfunction
 
@@ -696,6 +704,10 @@ function! nesk#wrap_error(err, msg) abort
   \}
 endfunction
 
+function! nesk#error_no_results() abort
+  return s:NO_RESULTS_ERROR
+endfunction
+
 function! nesk#error_none() abort
   return s:NONE
 endfunction
@@ -786,6 +798,9 @@ function! s:echomsg(hl, msg) abort
   echomsg a:msg
   echohl None
 endfunction
+
+
+call s:initialized()
 
 
 let &cpo = s:save_cpo
