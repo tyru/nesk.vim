@@ -178,7 +178,7 @@ function! s:TableNormalState_next(in, out) abort dict
       endif
     elseif len(cands) is# 1
       let bs = repeat("\<C-h>", strchars(self._buf))
-      let pair = values(cands)[0]
+      let pair = cands[0][1]
       let str = bs . pair[0] . pair[1]
       let self._buf = pair[1]
     else

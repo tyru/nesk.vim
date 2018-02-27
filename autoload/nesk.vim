@@ -320,24 +320,28 @@ function! s:Table_get(key, else) abort dict
   return get(self._raw_table, a:key, a:else)
 endfunction
 
-function! s:Table_search(key, ...) abort dict
+function! s:Table_search(prefix, ...) abort dict
   if a:0 is# 0 || a:1 <# 0
-    let end = max([len(a:key) - 1, 0])
-    return filter(copy(self._raw_table), 'v:key[: end] is# a:key')
+    let end = max([len(a:prefix) - 1, 0])
+    return s:fold(keys(self._raw_table), {
+    \ result,key ->
+    \   key[: end] is# a:prefix ?
+    \     result + [[key, self._raw_table[key]]] : result
+    \}, [])
   elseif a:1 is# 0
-    return {}
+    return []
   else
-    let d = {}
-    let end = max([len(a:key) - 1, 0])
+    let result = []
+    let end = max([len(a:prefix) - 1, 0])
     for key in keys(self._raw_table)
-      if key[: end] is# a:key
-        let d[key] = self._raw_table[key]
-        if len(d) >=# a:1
-          return d
+      if key[: end] is# a:prefix
+        let result += [[key, self._raw_table[key]]]
+        if len(result) >=# a:1
+          return result
         endif
       endif
     endfor
-    return d
+    return result
   endif
 endfunction
 
@@ -545,7 +549,8 @@ function! nesk#new_mode_change_state(mode_name) abort
   \}
 endfunction
 
-" Read one character, which is dummy to invoke this function immediately
+" Read one character, which is dummy to invoke this function immediately.
+" Caller must leave one character in a:in at least.
 function! s:ModeChangeState_next(in, out) abort dict
   call a:in.read(1)
   let nesk = nesk#get_instance()
@@ -768,6 +773,11 @@ endfunction
 
 
 function! s:nop(...) abort
+endfunction
+
+function! s:fold(list, f, init) abort
+  let [l, end] = [a:list + [a:init], len(a:list)]
+  return map(l, {i,v -> i is# end ? l[i-1] : call(a:f, [l[i-1], v])})[-1]
 endfunction
 
 
