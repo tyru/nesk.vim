@@ -9,7 +9,7 @@ function! nesk#table#kata#load()
   if s:loaded
     return
   endif
-  call nesk#define_table('kata', {
+  call nesk#define_table(nesk#new_table('kata', {
   \ 'a': ['ア', ''],
   \ 'bb': ['ッ', 'b'],
   \ 'ba': ['バ', ''],
@@ -250,7 +250,7 @@ function! nesk#table#kata#load()
   \ ']': ['」', ''],
   \ '.': ['。', ''],
   \ ',': ['、', ''],
-  \})
+  \}))
   let s:loaded = 1
 endfunction
 

@@ -9,7 +9,7 @@ function! nesk#table#hankata#load()
   if s:loaded
     return
   endif
-  call nesk#define_table('hankata', {
+  call nesk#define_table(nesk#new_table('hankata', {
   \ 'a': ['ｱ', ''],
   \ 'bb': ['ｯ', 'b'],
   \ 'ba': ['ﾊﾞ', ''],
@@ -250,7 +250,7 @@ function! nesk#table#hankata#load()
   \ ']': ['｣', ''],
   \ '.': ['｡', ''],
   \ ',': ['､', ''],
-  \})
+  \}))
   let s:loaded = 1
 endfunction
 

@@ -45,8 +45,10 @@ function! s:new_nesk() abort
   let nesk.filter = function('s:Nesk_filter')
   if s:DO_LOG && isdirectory(fnamemodify(s:LOG_FILE, ':h'))
     let nesk.log = function('s:Nesk_log')
+    let nesk.transit = function('s:Nesk_transit_log')
   else
-    let nesk.log = function('s:Nesk_no_log')
+    let nesk.log = function('s:nop')
+    let nesk.transit = function('s:Nesk_transit_nolog')
   endif
 
   return nesk
@@ -67,8 +69,7 @@ function! s:Nesk_enable() abort dict
   let mode_name = s:INITIAL_MODE
   let [mode, err] = self.get_mode(mode_name)
   if err isnot# s:NONE
-    call s:echomsg('ErrorMsg', err.error(1))
-    return ['', s:NONE]
+    return ['', err]
   endif
   augroup nesk-disable-hook
     autocmd!
@@ -142,21 +143,18 @@ endfunction
 
 function! s:Nesk_init_active_mode() abort dict
   if !self.enabled()
-    return
+    return nesk#error('mode is disabled')
   endif
   let [mode_name, err] = self.get_active_mode_name()
   if err isnot# s:NONE
-    let err = nesk#wrap_error(err, 'nesk#init_active_mode()')
-    call s:echomsg('ErrorMsg', err.error(1))
-    return
+    return err
   endif
   let [mode, err] = self.get_mode(mode_name)
   if err isnot# s:NONE
-    let err = nesk#wrap_error(err, 'nesk#init_active_mode()')
-    call s:echomsg('ErrorMsg', err.error(1))
-    return
+    return err
   endif
   call self.set_states(mode_name, [mode.initial_state])
+  return s:NONE
 endfunction
 
 function! s:Nesk_get_active_mode_name() abort dict
@@ -220,31 +218,26 @@ function! s:Nesk_get_active_mode() abort dict
   return [mode, s:NONE]
 endfunction
 
-function! s:Nesk_define_mode(name, mode) abort dict
-  let err = s:validate_define_mode_args(self, a:name, a:mode)
+function! s:Nesk_define_mode(mode) abort dict
+  let err = s:validate_mode(self, a:mode)
   if err isnot# s:NONE
-    let err = nesk#wrap_error(err, 'nesk#define_mode()')
-    call s:echomsg('ErrorMsg', err.error(1))
+    return nesk#wrap_error(err, 'nesk#define_mode()')
   endif
-  if !has_key(a:mode, 'state')
-    let a:mode.state = a:mode.initial_state
-  endif
-  let self._modes[a:name] = a:mode
+  let a:mode.state = a:mode.initial_state
+  let self._modes[a:mode.name] = a:mode
+  return s:NONE
 endfunction
 
-function! s:validate_define_mode_args(nesk, name, mode) abort
-  if type(a:name) isnot# type('')
-    return nesk#error('name is not String')
-  endif
-  if has_key(a:nesk._modes, a:name)
-    return nesk#errorf('mode "%s" is already registered', a:name)
-  endif
-  return s:validate_mode(a:mode)
-endfunction
-
-function! s:validate_mode(mode) abort
-  if type(a:mode) isnot# type({})
+function! s:validate_mode(nesk, mode) abort
+  if type(a:mode) isnot# v:t_dict
     return nesk#error('mode is not Dictionary')
+  endif
+  " mode.name
+  if type(get(a:mode, 'name', 0)) isnot# v:t_string
+    return nesk#error('mode.name does not exist or is not String')
+  endif
+  if has_key(a:nesk._modes, a:mode.name)
+    return nesk#errorf('mode "%s" is already registered', a:mode.name)
   endif
   " mode.initial_state
   if !has_key(a:mode, 'initial_state')
@@ -254,23 +247,23 @@ function! s:validate_mode(mode) abort
   if err isnot# s:NONE
     return err
   endif
-  " mode.state (optional)
+  " mode.state
   if has_key(a:mode, 'state')
-    return s:validate_state(a:mode.state, 'mode.state')
+    return nesk#error('mode.state must not exist')
   endif
   return s:NONE
 endfunction
 
 function! s:validate_state(state, name) abort
-  if type(a:state) isnot# type({})
+  if type(a:state) isnot# v:t_dict
     return nesk#error(a:name . ' is not Dictionary')
   endif
   " state.next
-  if !has_key(a:state, 'next') || type(a:state.next) isnot# type(function('function'))
+  if !has_key(a:state, 'next') || type(a:state.next) isnot# v:t_func
     return nesk#error(a:name . '.next is not Funcref')
   endif
   " state.commit (optional)
-  if has_key(a:state, 'commit') && type(a:state.commit) isnot# type(function('function'))
+  if has_key(a:state, 'commit') && type(a:state.commit) isnot# v:t_func
     return nesk#error(a:name . '.commit is not Funcref')
   endif
   return s:NONE
@@ -284,33 +277,30 @@ function! s:Nesk_get_table(name) abort dict
   return [deepcopy(table), s:NONE]
 endfunction
 
-function! s:Nesk_define_table(name, table) abort dict
-  let err = s:validate_define_table_args(self, a:name, a:table)
+function! s:Nesk_define_table(table) abort dict
+  let err = s:validate_table(self, a:table)
   if err isnot# s:NONE
-    let err = nesk#wrap_error(err, 'nesk#define_table()')
-    call s:echomsg('ErrorMsg', err.error(1))
+    return err
   endif
-  let self._tables[a:name] = s:new_table(a:name, a:table)
+  let self._tables[a:table.name] = a:table
+  return s:NONE
 endfunction
 
-function! s:validate_define_table_args(nesk, name, table) abort
-  if type(a:name) isnot# type('')
+function! s:validate_table(nesk, table) abort
+  if type(a:table) isnot# v:t_dict
+    return nesk#error('table is not Dictionary')
+  endif
+  " table.name
+  if type(get(a:table, 'name', 0)) isnot# v:t_string
     return nesk#error('name is not String')
   endif
-  if has_key(a:nesk._tables, a:name)
-    return nesk#errorf('table "%s" is already registered', a:name)
-  endif
-  return s:validate_table(a:table)
-endfunction
-
-function! s:validate_table(table) abort
-  if type(a:table) isnot# type({})
-    return nesk#error('table is not Dictionary')
+  if has_key(a:nesk._tables, a:table.name)
+    return nesk#errorf('table "%s" is already registered', a:table.name)
   endif
   return s:NONE
 endfunction
 
-function! s:new_table(name, table) abort
+function! nesk#new_table(name, table) abort
   return {
   \ '_raw_table': a:table,
   \ 'name': a:name,
@@ -320,9 +310,10 @@ function! s:new_table(name, table) abort
 endfunction
 
 function! s:is_table(table) abort
-  return type(a:table) is# type({}) &&
-  \      type(get(a:table, '_raw_table', 0)) is# type({}) &&
-  \      type(get(a:table, 'name', 0)) is# type('')
+  return type(a:table) is# v:t_dict &&
+  \      type(get(a:table, 'name', 0)) is# v:t_string &&
+  \      type(get(a:table, 'get', 0)) is# v:t_func &&
+  \      type(get(a:table, 'search', 0)) is# v:t_func
 endfunction
 
 function! s:Table_get(key, else) abort dict
@@ -399,48 +390,61 @@ endfunction
 function! s:Nesk_filter(str) abort dict
   let [states, err] = self.get_active_states()
   if err isnot# s:NONE
-    call s:echomsg('ErrorMsg', err.error(1))
-    return ''
+    return ['', err]
   endif
   let state = states[-1]
   let in = nesk#new_string_reader(a:str)
   let out = nesk#new_string_writer()
-  if s:DO_LOG
-    call self.log(printf('filter(): input=%s',
-    \                     string(a:str)))
-    while in.size() ># 0
-      call self.log(printf('  state=%s,in=%s,out=%s',
-      \                     s:state_string(state),
-      \                     string(in.peek(in.size())),
-      \                     string(out.to_string())))
-      let state = state.next(in, out)
-    endwhile
+  try
+    let state = self.transit(state, in, out)
+    if empty(out.errs)
+      let states[-1] = state
+      return [out.to_string(), s:NONE]
+    endif
+    let errs = out.errs
+  catch
+    let ex = type(v:exception) is# v:t_string ? v:exception : string(v:exception)
+    let errs = [nesk#error(ex, v:throwpoint)]
+  endtry
+  " Error handling
+  let merr = nesk#multi_error(errs)
+  let [str, err] = self.disable()
+  let merr = nesk#error_append(merr, err)
+  return [str, merr]
+endfunction
+
+function! s:Nesk_transit_log(state, in, out) abort
+  let state = a:state
+  call self.log(printf('transit(): input=%s',
+  \                     string(a:str)))
+  while a:in.size() ># 0
     call self.log(printf('  state=%s,in=%s,out=%s',
     \                     s:state_string(state),
-    \                     string(in.peek(in.size())),
-    \                     string(out.to_string())))
-    call self.log(printf('filter(): output=%s',
-    \                     string(out.to_string())))
-  else
-    while in.size() ># 0
-      let state = state.next(in, out)
-    endwhile
-  endif
-  if out._err isnot# s:NONE
-    echohl ErrorMsg
-    echomsg out._err.error(1)
-    echohl None
-    sleep 2
-    return ''
-  endif
-  let states[-1] = state
-  return out.to_string()
+    \                     string(a:in.peek(a:in.size())),
+    \                     string(a:out.to_string())))
+    let state = state.next(a:in, a:out)
+  endwhile
+  call self.log(printf('  state=%s,in=%s,out=%s',
+  \                     s:state_string(state),
+  \                     string(a:in.peek(a:in.size())),
+  \                     string(a:out.to_string())))
+  call self.log(printf('transit(): output=%s',
+  \                     string(a:out.to_string())))
+  return state
+endfunction
+
+function! s:Nesk_transit_nolog(state, in, out) abort
+  let state = a:state
+  while a:in.size() ># 0
+    let state = state.next(a:in, a:out)
+  endwhile
+  return state
 endfunction
 
 " * Transform table object into '<table "{name}">'
 " * Transform Funcref
 function! s:state_string(obj) abort
-  if type(a:obj) is# type({})
+  if type(a:obj) is# v:t_dict
     if s:is_table(a:obj)
       return '<table "' . a:obj.name . '">'
     endif
@@ -449,7 +453,7 @@ function! s:state_string(obj) abort
       let elems += [string(key) . ': ' . s:state_string(a:obj[key])]
     endfor
     return '{' . join(elems, ', ') . '}'
-  elseif type(a:obj) is# type(function('function'))
+  elseif type(a:obj) is# v:t_func
     return substitute(string(a:obj), '^function(''[^'']\+''\zs, .*\ze)$', '', '')
   else
     return string(a:obj)
@@ -460,9 +464,6 @@ function! s:Nesk_log(msg) abort dict
   call writefile([a:msg], s:LOG_FILE, 'a')
 endfunction
 
-function! s:Nesk_no_log(msg) abort dict
-endfunction
-
 function! nesk#new_string_reader(str) abort
   return {
   \ '_str': a:str,
@@ -470,6 +471,8 @@ function! nesk#new_string_reader(str) abort
   \ '_last_read': 0,
   \ 'read': function('s:StringReader_read'),
   \ 'peek': function('s:StringReader_peek'),
+  \ 'read_char': function('s:StringReader_read_char'),
+  \ 'peek_char': function('s:StringReader_peek_char'),
   \ 'unread': function('s:StringReader_unread'),
   \ 'size': function('s:StringReader_size'),
   \}
@@ -489,6 +492,17 @@ function! s:StringReader_peek(n) abort dict
   return self._str[self._pos : self._pos + a:n - 1]
 endfunction
 
+function! s:StringReader_read_char() abort dict
+  let c = self.peek_char()
+  let self._last_read = strlen(c)
+  let self._pos += self._last_read
+  return c
+endfunction
+
+function! s:StringReader_peek_char() abort dict
+  return matchstr(self._str, '.', self._pos)
+endfunction
+
 " NOTE: `self._pos - self._last_read` must not be negative
 function! s:StringReader_unread() abort dict
   let self._pos -= self._last_read
@@ -502,8 +516,8 @@ endfunction
 
 function! nesk#new_string_writer(...) abort
   return {
-  \ '_str': (a:0 && type(a:1) is# type('') ? a:1 : ''),
-  \ '_err': s:NONE,
+  \ '_str': (a:0 && type(a:1) is# v:t_string ? a:1 : ''),
+  \ 'errs': [],
   \ 'write': function('s:StringWriter_write'),
   \ 'to_string': function('s:StringWriter_to_string'),
   \ 'error': function('s:StringWriter_error'),
@@ -519,8 +533,8 @@ function! s:StringWriter_to_string() abort dict
 endfunction
 
 function! s:StringWriter_error(err) abort dict
-  let self._err = a:err
-  return s:NOP_STATE
+  let self.errs += [a:err]
+  return s:ESCAPE_STATE
 endfunction
 
 
@@ -563,29 +577,47 @@ function! s:DisableState_next(in, out) abort dict
     return a:out.error(nesk#wrap_error(err, 'Cannot disable skk'))
   endif
   call a:out.write(str)
-  return s:NOP_STATE
+  return s:ESCAPE_STATE
 endfunction
 
-let s:NOP_STATE = {}
+let s:ESCAPE_STATE = {}
 
 " Read all string from a:in to stop the nesk.filter()'s loop
-function! s:NopState_next(in, out) abort dict
+function! s:EscapeState_next(in, out) abort dict
   call a:in.read(a:in.size())
   return self
 endfunction
-let s:NOP_STATE.next = function('s:NopState_next')
+let s:ESCAPE_STATE.next = function('s:EscapeState_next')
 
 
 function! nesk#enable() abort
-  return nesk#get_instance().enable()[0]
+  let [str, err] = nesk#get_instance().enable()
+  if err is# s:NONE
+    return str
+  endif
+  call s:echomsg('ErrorMsg', err.error(1))
+  sleep 2
+  return ''
 endfunction
 
 function! nesk#disable() abort
-  return nesk#get_instance().disable()[0]
+  let [str, err] = nesk#get_instance().disable()
+  if err is# s:NONE
+    return str
+  endif
+  call s:echomsg('ErrorMsg', err.error(1))
+  sleep 2
+  return ''
 endfunction
 
 function! nesk#toggle() abort
-  return nesk#get_instance().toggle()[0]
+  let [str, err] = nesk#get_instance().toggle()
+  if err is# s:NONE
+    return str
+  endif
+  call s:echomsg('ErrorMsg', err.error(1))
+  sleep 2
+  return ''
 endfunction
 
 function! nesk#enabled() abort
@@ -593,20 +625,41 @@ function! nesk#enabled() abort
 endfunction
 
 function! nesk#init_active_mode() abort
-  return nesk#get_instance().init_active_mode()
+  let err = nesk#get_instance().init_active_mode()
+  if err is# s:NONE
+    return
+  endif
+  call s:echomsg('ErrorMsg', err.error(1))
+  sleep 2
 endfunction
 
 function! nesk#filter(str) abort
-  return nesk#get_instance().filter(a:str)
+  let [str, err] = nesk#get_instance().filter(a:str)
+  if err is# s:NONE
+    return str
+  endif
+  call s:echomsg('ErrorMsg', err.error(1))
+  sleep 2
+  return ''
 endfunction
 
 
-function! nesk#define_mode(name, mode) abort
-  return nesk#get_instance().define_mode(a:name, a:mode)
+function! nesk#define_mode(mode) abort
+  let err = nesk#get_instance().define_mode(a:mode)
+  if err is# s:NONE
+    return
+  endif
+  call s:echomsg('ErrorMsg', err.error(1))
+  sleep 2
 endfunction
 
-function! nesk#define_table(name, table) abort
-  return nesk#get_instance().define_table(a:name, a:table)
+function! nesk#define_table(table) abort
+  let err = nesk#get_instance().define_table(a:table)
+  if err is# s:NONE
+    return
+  endif
+  call s:echomsg('ErrorMsg', err.error(1))
+  sleep 2
 endfunction
 
 
@@ -619,11 +672,11 @@ function! nesk#errorf(fmt, ...) abort
   \}
 endfunction
 
-function! nesk#error(msg) abort
+function! nesk#error(msg, ...) abort
   return {
   \ 'error': function('s:Error_error'),
   \ 'msg': a:msg,
-  \ 'stacktrace': s:caller(1),
+  \ 'stacktrace': a:0 && type(a:1) is# v:t_string ? a:1 : s:caller(1),
   \}
 endfunction
 
@@ -643,7 +696,7 @@ function! nesk#error_none() abort
 endfunction
 
 function! s:caller(n) abort
-  return split(expand('<sfile>'), '\.\.')[: -(a:n + 2)]
+  return join(split(expand('<sfile>'), '\.\.')[: -(a:n + 2)], '..')
 endfunction
 
 function! s:Error_error(...) abort dict
@@ -652,9 +705,69 @@ function! s:Error_error(...) abort dict
     return self.msg
   endif
   if has_key(self, 'stacktrace')
-    return printf('%s in %s', self.msg, join(self.stacktrace, '..'))
+    return printf('%s in %s', self.msg, self.stacktrace)
   endif
   return self.msg
+endfunction
+
+function! nesk#multi_error(errs) abort
+  if type(a:errs) isnot# v:t_list || empty(a:errs)
+    return s:NONE
+  endif
+  return {
+  \ 'errs': a:errs,
+  \ 'error': function('s:MultiError_error'),
+  \ 'append': function('s:MultiError_append'),
+  \}
+endfunction
+
+function! nesk#is_multi_error(err) abort
+  return type(a:err) is# v:t_dict &&
+  \      get(a:err, 'append', 0) is# function('s:MultiError_append')
+endfunction
+
+function! nesk#error_append(err, ...) abort
+  let result = a:err
+  for err in a:000
+    if err is# s:NONE
+      continue
+    endif
+    if result is# s:NONE
+      let result = err
+      continue
+    endif
+    if !nesk#is_multi_error(result)
+      let result = nesk#multi_error([result])
+    endif
+    call result.append(err)
+  endfor
+  return result
+endfunction
+
+function! s:MultiError_error(...) abort dict
+  if len(self.errs) is# 1
+    let e = self.errs[0]
+    return call(e.error, a:000, e)
+  endif
+  let args = a:000
+  let result = []
+  for err in self.errs
+    let result += ['* ' . call(err.error, args, err)]
+  endfor
+  return join(result, "\n")
+endfunction
+
+" This function does not return anything,
+" and changes `self.errs` statefully unlike hashicorp/go-multierror
+function! s:MultiError_append(err) abort dict
+  if a:err is# s:NONE
+    return
+  endif
+  let self.errs += [a:err]
+endfunction
+
+
+function! s:nop(...) abort
 endfunction
 
 

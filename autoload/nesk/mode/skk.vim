@@ -16,9 +16,9 @@ endfunction
 
 function! s:define_kana_mode() abort
   let state = {'next': function('s:KanaState_next')}
-  let mode = {'initial_state': state}
+  let mode = {'name': 'skk/kana', 'initial_state': state}
 
-  call nesk#define_mode('skk/kana', mode)
+  call nesk#define_mode(mode)
 endfunction
 
 function! s:KanaState_next(in, out) abort
@@ -40,9 +40,9 @@ endfunction
 
 function! s:define_kata_mode() abort
   let state = {'next': function('s:KataState_next')}
-  let mode = {'initial_state': state}
+  let mode = {'name': 'skk/kata', 'initial_state': state}
 
-  call nesk#define_mode('skk/kata', mode)
+  call nesk#define_mode(mode)
 endfunction
 
 function! s:KataState_next(in, out) abort
@@ -64,9 +64,9 @@ endfunction
 
 function! s:define_hankata_mode() abort
   let state = {'next': function('s:HankataState_next')}
-  let mode = {'initial_state': state}
+  let mode = {'name': 'skk/hankata', 'initial_state': state}
 
-  call nesk#define_mode('skk/hankata', mode)
+  call nesk#define_mode(mode)
 endfunction
 
 function! s:HankataState_next(in, out) abort
@@ -103,7 +103,7 @@ endfunction
 " after leaving this function.
 " (the loop exits when a:in becomes empty)
 function! s:TableNormalState_next(in, out) abort dict
-  let c = a:in.read(1)
+  let c = a:in.read_char()
   if c is# "\<C-j>"
     if self._buf is# ''
       call a:in.unread()
@@ -149,19 +149,16 @@ function! s:TableNormalState_next(in, out) abort dict
       return nesk#new_mode_change_state(name)
     endif
     return self
-  elseif c =~# '^[A-Z]$'
-    let rest = a:in.read(a:in.size())
-    let in = nesk#new_string_reader(';' . tolower(c) . rest)
-    let state = self
-    while in.size() ># 0
-      let state = state.next(in, a:out)
-    endwhile
-    return state
-  elseif c =~# ';'
+  elseif c =~# 'Q'
     " TODO
     let str = '$'
     call a:out.write(str)
     return self
+  elseif c =~# '^[A-Z]$'
+    let rest = a:in.read(a:in.size())
+    let in = nesk#new_string_reader('Q' . tolower(c) . rest)
+    let nesk = nesk#get_instance()
+    return nesk.transit(self, in, a:out)
   elseif c is# "\<Esc>"
     return s:do_escape(self, a:out)
   elseif c is# "\<C-g>"
@@ -250,13 +247,13 @@ endfunction
 
 function! s:define_ascii_mode() abort
   let state = {'next': function('s:AsciiState_next')}
-  let mode = {'initial_state': state}
+  let mode = {'name': 'skk/ascii', 'initial_state': state}
 
-  call nesk#define_mode('skk/ascii', mode)
+  call nesk#define_mode(mode)
 endfunction
 
 function! s:AsciiState_next(in, out) abort dict
-  let c = a:in.read(1)
+  let c = a:in.read_char()
   if c is# "\<C-j>"
     call a:in.unread()
     return nesk#new_mode_change_state('skk/kana')
@@ -272,9 +269,9 @@ endfunction
 
 function! s:define_zenei_mode() abort
   let state = {'next': function('s:ZeneiTable_next0')}
-  let mode = {'initial_state': state}
+  let mode = {'name': 'skk/zenei', 'initial_state': state}
 
-  call nesk#define_mode('skk/zenei', mode)
+  call nesk#define_mode(mode)
 endfunction
 
 function! s:ZeneiTable_next0(in, out) abort dict
@@ -294,7 +291,7 @@ function! s:ZeneiTable_next0(in, out) abort dict
 endfunction
 
 function! s:ZeneiTable_next1(in, out) abort dict
-  let c = a:in.read(1)
+  let c = a:in.read_char()
   if c is# "\<C-j>"
     return nesk#new_mode_change_state('skk/kana')
   else

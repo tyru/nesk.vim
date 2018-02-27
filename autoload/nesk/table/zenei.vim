@@ -9,7 +9,7 @@ function! nesk#table#zenei#load()
   if s:loaded
     return
   endif
-  call nesk#define_table('zenei', {
+  call nesk#define_table(nesk#new_table('zenei', {
   \ ' ': '　',
   \ '!': '！',
   \ '"': '”',
@@ -105,7 +105,7 @@ function! nesk#table#zenei#load()
   \ '|': '｜',
   \ '}': '｝',
   \ '~': '～',
-  \})
+  \}))
   let s:loaded = 1
 endfunction
 
