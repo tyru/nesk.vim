@@ -5,7 +5,7 @@ set cpo&vim
 
 let s:loaded = 0
 
-function! nesk#table#zenei#load()
+function! nesk#table#zenei#load() abort
   if s:loaded
     return
   endif

@@ -5,7 +5,7 @@ set cpo&vim
 
 let s:loaded = 0
 
-function! nesk#table#kata#load()
+function! nesk#table#kata#load() abort
   if s:loaded
     return
   endif

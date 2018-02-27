@@ -5,7 +5,7 @@ set cpo&vim
 
 let s:loaded = 0
 
-function! nesk#table#hankata#load()
+function! nesk#table#hankata#load() abort
   if s:loaded
     return
   endif
