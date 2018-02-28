@@ -5,7 +5,7 @@ set cpo&vim
 
 
 function! s:initialized() abort
-  let s:NONE = []
+  let s:NIL = []
 
   let s:NO_RESULTS_ERROR = nesk#error('no results', '')
 
@@ -15,7 +15,7 @@ function! s:initialized() abort
   let s:DO_LOG = 0
   let s:LOG_FILE = expand('~/nesk.log')
 
-  let s:nesk = s:NONE
+  let s:nesk = s:NIL
 endfunction
 
 
@@ -59,7 +59,7 @@ function! s:new_nesk() abort
 endfunction
 
 function! nesk#get_instance() abort
-  if s:nesk is# s:NONE
+  if s:nesk is# s:NIL
     let s:nesk = s:new_nesk()
   endif
   return s:nesk
@@ -72,7 +72,7 @@ function! s:Nesk_enable() abort dict
   call self.load_modes_in_rtp()
   let mode_name = s:INITIAL_MODE
   let [mode, err] = self.get_mode(mode_name)
-  if err isnot# s:NONE
+  if err isnot# s:NIL
     return ['', err]
   endif
   augroup nesk-disable-hook
@@ -85,7 +85,7 @@ function! s:Nesk_enable() abort dict
   augroup END
   call self.set_states(mode_name, [mode.initial_state])
   let err = self.set_active_mode_name(mode_name)
-  if err isnot# s:NONE
+  if err isnot# s:NIL
     return ['', err]
   endif
   call self.map_keys()
@@ -95,21 +95,21 @@ function! s:Nesk_enable() abort dict
     " We have to use i_CTRL-^ .
     setlocal iminsert=1 imsearch=1
     redrawstatus
-    return ["\<C-^>", s:NONE]
+    return ["\<C-^>", s:NIL]
   else
     setlocal iminsert=1 imsearch=1
     redrawstatus
-    return ['', s:NONE]
+    return ['', s:NIL]
   endif
 endfunction
 
 function! s:Nesk_disable() abort dict
   if !self.enabled()
-    return ['', s:NONE]
+    return ['', s:NIL]
   endif
   let committed = ''
   let [states, err] = self.get_active_states()
-  if err is# s:NONE && has_key(states[-1], 'commit')
+  if err is# s:NIL && has_key(states[-1], 'commit')
     let committed = states[-1].commit()
   endif
   call self.clear_states()
@@ -121,11 +121,11 @@ function! s:Nesk_disable() abort dict
     " We have to use i_CTRL-^ .
     setlocal iminsert=0 imsearch=0
     redrawstatus
-    return [committed . "\<C-^>", s:NONE]
+    return [committed . "\<C-^>", s:NIL]
   else
     setlocal iminsert=0 imsearch=0
     redrawstatus
-    return ['', s:NONE]
+    return ['', s:NIL]
   endif
 endfunction
 
@@ -134,7 +134,7 @@ function! s:Nesk_toggle() abort dict
 endfunction
 
 function! s:Nesk_enabled() abort dict
-  return &iminsert isnot# 0 && self.get_active_mode_name()[1] is# s:NONE
+  return &iminsert isnot# 0 && self.get_active_mode_name()[1] is# s:NIL
 endfunction
 
 function! s:Nesk_load_modes_in_rtp() abort dict
@@ -150,22 +150,22 @@ function! s:Nesk_init_active_mode() abort dict
     return nesk#error('mode is disabled')
   endif
   let [mode_name, err] = self.get_active_mode_name()
-  if err isnot# s:NONE
+  if err isnot# s:NIL
     return err
   endif
   let [mode, err] = self.get_mode(mode_name)
-  if err isnot# s:NONE
+  if err isnot# s:NIL
     return err
   endif
   call self.set_states(mode_name, [mode.initial_state])
-  return s:NONE
+  return s:NIL
 endfunction
 
 function! s:Nesk_get_active_mode_name() abort dict
   if self._active_mode_name is# ''
     return ['', nesk#error('no active states exist')]
   endif
-  return [self._active_mode_name, s:NONE]
+  return [self._active_mode_name, s:NIL]
 endfunction
 
 function! s:Nesk_set_active_mode_name(name) abort dict
@@ -173,13 +173,13 @@ function! s:Nesk_set_active_mode_name(name) abort dict
     return nesk#errorf('current mode is already "%s"', a:name)
   endif
   let [mode, err] = self.get_mode(a:name)
-  if err isnot# s:NONE
+  if err isnot# s:NIL
     return nesk#wrap_error(err, printf('no such mode (%s)', a:name))
   endif
   let old = self._active_mode_name
   let self._active_mode_name = a:name
   call self.set_states(a:name, [mode.initial_state])
-  return s:NONE
+  return s:NIL
 endfunction
 
 function! s:Nesk_set_states(mode_name, states) abort dict
@@ -192,44 +192,44 @@ endfunction
 
 function! s:Nesk_get_active_states() abort dict
   let [mode_name, err] = self.get_active_mode_name()
-  if err isnot# s:NONE
-    return [s:NONE, err]
+  if err isnot# s:NIL
+    return [s:NIL, err]
   endif
   let states = get(self._states, mode_name, [])
   if empty(states)
-    return [s:NONE, nesk#error('no active state')]
+    return [s:NIL, nesk#error('no active state')]
   endif
-  return [states, s:NONE]
+  return [states, s:NIL]
 endfunction
 
 function! s:Nesk_get_mode(name) abort dict
-  let mode = get(self._modes, a:name, s:NONE)
-  if mode is# s:NONE
-    return [s:NONE, nesk#errorf('cannot load mode "%s"', a:name)]
+  let mode = get(self._modes, a:name, s:NIL)
+  if mode is# s:NIL
+    return [s:NIL, nesk#errorf('cannot load mode "%s"', a:name)]
   endif
-  return [deepcopy(mode), s:NONE]
+  return [deepcopy(mode), s:NIL]
 endfunction
 
 function! s:Nesk_get_active_mode() abort dict
   let [mode_name, err] = self.get_active_mode_name()
-  if err isnot# s:NONE
-    return [s:NONE, err]
+  if err isnot# s:NIL
+    return [s:NIL, err]
   endif
   let [mode, err] = self.get_mode(mode_name)
-  if err isnot# s:NONE
-    return [s:NONE, err]
+  if err isnot# s:NIL
+    return [s:NIL, err]
   endif
-  return [mode, s:NONE]
+  return [mode, s:NIL]
 endfunction
 
 function! s:Nesk_define_mode(mode) abort dict
   let err = s:validate_mode(self, a:mode)
-  if err isnot# s:NONE
+  if err isnot# s:NIL
     return nesk#wrap_error(err, 'nesk#define_mode()')
   endif
   let a:mode.state = a:mode.initial_state
   let self._modes[a:mode.name] = a:mode
-  return s:NONE
+  return s:NIL
 endfunction
 
 function! s:validate_mode(nesk, mode) abort
@@ -248,14 +248,14 @@ function! s:validate_mode(nesk, mode) abort
     return nesk#error('mode.initial_state does not exist')
   endif
   let err = s:validate_state(a:mode.initial_state, 'mode.initial_state')
-  if err isnot# s:NONE
+  if err isnot# s:NIL
     return err
   endif
   " mode.state
   if has_key(a:mode, 'state')
     return nesk#error('mode.state must not exist')
   endif
-  return s:NONE
+  return s:NIL
 endfunction
 
 function! s:validate_state(state, name) abort
@@ -270,24 +270,24 @@ function! s:validate_state(state, name) abort
   if has_key(a:state, 'commit') && type(a:state.commit) isnot# v:t_func
     return nesk#error(a:name . '.commit is not Funcref')
   endif
-  return s:NONE
+  return s:NIL
 endfunction
 
 function! s:Nesk_get_table(name) abort dict
-  let table = get(self._tables, a:name, s:NONE)
-  if table is# s:NONE
-    return [s:NONE, nesk#errorf('cannot load table "%s"', a:name)]
+  let table = get(self._tables, a:name, s:NIL)
+  if table is# s:NIL
+    return [s:NIL, nesk#errorf('cannot load table "%s"', a:name)]
   endif
-  return [deepcopy(table), s:NONE]
+  return [deepcopy(table), s:NIL]
 endfunction
 
 function! s:Nesk_define_table(table) abort dict
   let err = s:validate_table(self, a:table)
-  if err isnot# s:NONE
+  if err isnot# s:NIL
     return err
   endif
   let self._tables[a:table.name] = a:table
-  return s:NONE
+  return s:NIL
 endfunction
 
 function! s:validate_table(nesk, table) abort
@@ -301,7 +301,7 @@ function! s:validate_table(nesk, table) abort
   if has_key(a:nesk._tables, a:table.name)
     return nesk#errorf('table "%s" is already registered', a:table.name)
   endif
-  return s:NONE
+  return s:NIL
 endfunction
 
 function! nesk#new_table(name, table) abort
@@ -322,9 +322,9 @@ endfunction
 
 function! s:Table_get(key) abort dict
   if has_key(self._raw_table, a:key)
-    return [self._raw_table[a:key], s:NONE]
+    return [self._raw_table[a:key], s:NIL]
   endif
-  return [s:NONE, nesk#error_no_results()]
+  return [s:NIL, nesk#error_no_results()]
 endfunction
 
 function! s:Table_search(prefix, ...) abort dict
@@ -335,9 +335,9 @@ function! s:Table_search(prefix, ...) abort dict
     \   key[: end] is# a:prefix ?
     \     result + [[key, self._raw_table[key]]] : result
     \}, [])
-    return [result, s:NONE]
+    return [result, s:NIL]
   elseif a:1 is# 0
-    return [[], s:NONE]
+    return [[], s:NIL]
   else
     let result = []
     let end = max([len(a:prefix) - 1, 0])
@@ -345,11 +345,11 @@ function! s:Table_search(prefix, ...) abort dict
       if key[: end] is# a:prefix
         let result += [[key, self._raw_table[key]]]
         if len(result) >=# a:1
-          return [result, s:NONE]
+          return [result, s:NIL]
         endif
       endif
     endfor
-    return [result, s:NONE]
+    return [result, s:NIL]
   endif
 endfunction
 
@@ -401,7 +401,7 @@ endfunction
 
 function! s:Nesk_filter(str) abort dict
   let [states, err] = self.get_active_states()
-  if err isnot# s:NONE
+  if err isnot# s:NIL
     return ['', err]
   endif
   let state = states[-1]
@@ -411,7 +411,7 @@ function! s:Nesk_filter(str) abort dict
     let state = self.transit(state, in, out)
     if empty(out.errs)
       let states[-1] = state
-      return [out.to_string(), s:NONE]
+      return [out.to_string(), s:NIL]
     endif
     let errs = out.errs
   catch
@@ -563,12 +563,12 @@ function! s:ModeChangeState_next(in, out) abort dict
   call a:in.read(1)
   let nesk = nesk#get_instance()
   let err = nesk.set_active_mode_name(self._mode_name)
-  if err isnot# s:NONE
+  if err isnot# s:NIL
     let err = nesk#wrap_error(err, 'Cannot set active mode to ' . self._mode_name)
     return a:out.error(err)
   endif
   let [mode, err] = nesk.get_active_mode()
-  if err isnot# s:NONE
+  if err isnot# s:NIL
     let err = nesk#wrap_error(err, 'Cannot get active mode')
     return a:out.error(err)
   endif
@@ -586,7 +586,7 @@ function! s:DisableState_next(in, out) abort dict
   call a:in.read(a:in.size())
   let nesk = nesk#get_instance()
   let [str, err] = nesk.disable()
-  if err isnot# nesk#error_none()
+  if err isnot# s:NIL
     return a:out.error(nesk#wrap_error(err, 'Cannot disable skk'))
   endif
   call a:out.write(str)
@@ -605,7 +605,7 @@ let s:ESCAPE_STATE.next = function('s:EscapeState_next')
 
 function! nesk#enable() abort
   let [str, err] = nesk#get_instance().enable()
-  if err is# s:NONE
+  if err is# s:NIL
     return str
   endif
   call s:echomsg('ErrorMsg', err.error(1))
@@ -615,7 +615,7 @@ endfunction
 
 function! nesk#disable() abort
   let [str, err] = nesk#get_instance().disable()
-  if err is# s:NONE
+  if err is# s:NIL
     return str
   endif
   call s:echomsg('ErrorMsg', err.error(1))
@@ -625,7 +625,7 @@ endfunction
 
 function! nesk#toggle() abort
   let [str, err] = nesk#get_instance().toggle()
-  if err is# s:NONE
+  if err is# s:NIL
     return str
   endif
   call s:echomsg('ErrorMsg', err.error(1))
@@ -639,7 +639,7 @@ endfunction
 
 function! nesk#init_active_mode() abort
   let err = nesk#get_instance().init_active_mode()
-  if err is# s:NONE
+  if err is# s:NIL
     return
   endif
   call s:echomsg('ErrorMsg', err.error(1))
@@ -648,7 +648,7 @@ endfunction
 
 function! nesk#filter(str) abort
   let [str, err] = nesk#get_instance().filter(a:str)
-  if err is# s:NONE
+  if err is# s:NIL
     return str
   endif
   call s:echomsg('ErrorMsg', err.error(1))
@@ -659,7 +659,7 @@ endfunction
 
 function! nesk#define_mode(mode) abort
   let err = nesk#get_instance().define_mode(a:mode)
-  if err is# s:NONE
+  if err is# s:NIL
     return
   endif
   call s:echomsg('ErrorMsg', err.error(1))
@@ -668,7 +668,7 @@ endfunction
 
 function! nesk#define_table(table) abort
   let err = nesk#get_instance().define_table(a:table)
-  if err is# s:NONE
+  if err is# s:NIL
     return
   endif
   call s:echomsg('ErrorMsg', err.error(1))
@@ -694,7 +694,7 @@ function! nesk#error(msg, ...) abort
 endfunction
 
 function! nesk#wrap_error(err, msg) abort
-  if a:err is# s:NONE
+  if a:err is# s:NIL
     return nesk#error(a:msg)
   endif
   return {
@@ -708,8 +708,8 @@ function! nesk#error_no_results() abort
   return s:NO_RESULTS_ERROR
 endfunction
 
-function! nesk#error_none() abort
-  return s:NONE
+function! nesk#error_nil() abort
+  return s:NIL
 endfunction
 
 function! s:caller(n) abort
@@ -729,7 +729,7 @@ endfunction
 
 function! nesk#multi_error(errs) abort
   if type(a:errs) isnot# v:t_list || empty(a:errs)
-    return s:NONE
+    return s:NIL
   endif
   return {
   \ 'errs': a:errs,
@@ -746,10 +746,10 @@ endfunction
 function! nesk#error_append(err, ...) abort
   let result = a:err
   for err in a:000
-    if err is# s:NONE
+    if err is# s:NIL
       continue
     endif
-    if result is# s:NONE
+    if result is# s:NIL
       let result = err
       continue
     endif
@@ -777,7 +777,7 @@ endfunction
 " This function does not return anything,
 " and changes `self.errs` statefully unlike hashicorp/go-multierror
 function! s:MultiError_append(err) abort dict
-  if a:err is# s:NONE
+  if a:err is# s:NIL
     return
   endif
   let self.errs += [a:err]

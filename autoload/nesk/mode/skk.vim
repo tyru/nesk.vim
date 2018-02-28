@@ -26,7 +26,7 @@ function! s:KanaState_next(in, out) abort
 
   let nesk = nesk#get_instance()
   let [table, err] = nesk.get_table('kana')
-  if err isnot# nesk#error_none()
+  if err isnot# nesk#error_nil()
     return a:out.error(nesk#wrap_error(err, 'Cannot load kana table'))
   endif
 
@@ -50,7 +50,7 @@ function! s:KataState_next(in, out) abort
 
   let nesk = nesk#get_instance()
   let [table, err] = nesk.get_table('kata')
-  if err isnot# nesk#error_none()
+  if err isnot# nesk#error_nil()
     return a:out.error(nesk#wrap_error(err, 'Cannot load kata table'))
   endif
 
@@ -74,7 +74,7 @@ function! s:HankataState_next(in, out) abort
 
   let nesk = nesk#get_instance()
   let [table, err] = nesk.get_table('hankata')
-  if err isnot# nesk#error_none()
+  if err isnot# nesk#error_nil()
     return a:out.error(nesk#wrap_error(err, 'Cannot load hankata table'))
   endif
 
@@ -165,7 +165,7 @@ function! s:TableNormalState_next(in, out) abort dict
     return s:do_cancel(self, a:out)
   else
     let [cands, err] = self._table.search(self._buf . c)
-    if err isnot# nesk#error_none()
+    if err isnot# nesk#error_nil()
       " This must not be occurred in this table object
       return a:out.error(nesk#wrap_error(err, 'table.search() returned non-nil error'))
     endif
@@ -283,7 +283,7 @@ function! s:ZeneiTable_next0(in, out) abort dict
 
   let nesk = nesk#get_instance()
   let [table, err] = nesk.get_table('zenei')
-  if err isnot# nesk#error_none()
+  if err isnot# nesk#error_nil()
     return a:out.error(nesk#wrap_error(err, 'Cannot load zenei table'))
   endif
 
