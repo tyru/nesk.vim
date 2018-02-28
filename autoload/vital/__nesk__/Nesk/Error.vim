@@ -48,13 +48,11 @@ function! s:new_multi(errs) abort
   if len(a:errs) is# 1
     return a:errs[0]
   endif
-  let [ex, tp] = s:_fold(errs, {
-  \ res,err -> [
-  \   add(res[0], '* ' . err.exception)),
-  \   add(res[1], '* ' . err.throwpoint),
-  \   res[1] + [err.throwpoint],
-  \ ]
-  \}, [[], []])
+  let [ex, tp] = [[], []]
+  for err in errs
+    let ex += ['* ' . err.exception]
+    let tp += ['* ' . err.throwpoint]
+  endfor
   return {
   \ 'exception': join(ex, "\n"),
   \ 'throwpoint': join(tp, "\n"),
@@ -68,7 +66,7 @@ function! s:is_multi_error(err) abort
 endfunction
 
 function! s:append(err, ...) abort
-  return s:new_multi(s:flatten([a:err] + a:000))
+  return s:new_multi([a:err] + a:000)
 endfunction
 
 function! s:flatten(...) abort
@@ -89,12 +87,6 @@ endfunction
 function! s:_flatmap(list, f) abort
   let result = []
   return get(map(copy(a:list), {_,v -> extend(result, a:f(v))}), -1, [])
-endfunction
-
-" This function does not changes a:list
-function! s:_fold(list, f, init) abort
-  let [l, end] = [a:list + [a:init], len(a:list)]
-  return map(l, {i,v -> i is# end ? l[i-1] : a:f(l[i-1], v)})[-1]
 endfunction
 
 
