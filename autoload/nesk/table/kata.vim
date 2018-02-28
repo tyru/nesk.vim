@@ -3,13 +3,8 @@ scriptencoding utf-8
 let s:save_cpo = &cpo
 set cpo&vim
 
-let s:loaded = 0
-
-function! nesk#table#kata#load() abort
-  if s:loaded
-    return
-  endif
-  call nesk#define_table(nesk#new_table('kata', {
+function! nesk#table#kata#new() abort
+  return nesk#table#hash#new('kata', {
   \ 'a': ['ア', ''],
   \ 'bb': ['ッ', 'b'],
   \ 'ba': ['バ', ''],
@@ -250,8 +245,7 @@ function! nesk#table#kata#load() abort
   \ ']': ['」', ''],
   \ '.': ['。', ''],
   \ ',': ['、', ''],
-  \}))
-  let s:loaded = 1
+  \})
 endfunction
 
 let &cpo = s:save_cpo

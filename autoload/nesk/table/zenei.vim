@@ -3,13 +3,8 @@ scriptencoding utf-8
 let s:save_cpo = &cpo
 set cpo&vim
 
-let s:loaded = 0
-
-function! nesk#table#zenei#load() abort
-  if s:loaded
-    return
-  endif
-  call nesk#define_table(nesk#new_table('zenei', {
+function! nesk#table#zenei#new() abort
+  return nesk#table#hash#new('zenei', {
   \ ' ': '　',
   \ '!': '！',
   \ '"': '”',
@@ -105,8 +100,7 @@ function! nesk#table#zenei#load() abort
   \ '|': '｜',
   \ '}': '｝',
   \ '~': '～',
-  \}))
-  let s:loaded = 1
+  \})
 endfunction
 
 let &cpo = s:save_cpo

@@ -3,13 +3,9 @@ scriptencoding utf-8
 let s:save_cpo = &cpo
 set cpo&vim
 
-let s:loaded = 0
 
-function! nesk#table#hankata#load() abort
-  if s:loaded
-    return
-  endif
-  call nesk#define_table(nesk#new_table('hankata', {
+function! nesk#table#hankata#new() abort
+  return nesk#table#hash#new('hankata', {
   \ 'a': ['ｱ', ''],
   \ 'bb': ['ｯ', 'b'],
   \ 'ba': ['ﾊﾞ', ''],
@@ -250,8 +246,7 @@ function! nesk#table#hankata#load() abort
   \ ']': ['｣', ''],
   \ '.': ['｡', ''],
   \ ',': ['､', ''],
-  \}))
-  let s:loaded = 1
+  \})
 endfunction
 
 let &cpo = s:save_cpo
