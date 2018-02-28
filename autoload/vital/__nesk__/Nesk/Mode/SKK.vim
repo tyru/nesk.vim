@@ -18,7 +18,7 @@ endfunction
 
 " 'kana' mode {{{
 
-let s:loaded_kana_table = 0
+let s:loaded_kana_and_skkdict_table = 0
 
 function! s:new_kana_mode() abort
   let state = {'next': function('s:KanaState_next')}
@@ -28,10 +28,14 @@ endfunction
 
 " Set up kana mode: define tables, and change state to TableNormalState.
 function! s:KanaState_next(in, out) abort
-  if !s:loaded_kana_table
+  if !s:loaded_kana_and_skkdict_table
     " Define kana table
     call nesk#define_table(nesk#table#kana#new())
-    let s:loaded_kana_table = 1
+    " Define skkdict table (TODO: Global variable)
+    " let userdict = nesk#table#skkdict#new('skkdict/user-dict', expand('~/.skkdict/user-dict'), 0, 'utf-8')
+    " let sysdict = nesk#table#skkdict#new('skkdict/system-dict', expand('~/.skkdict/system-dict'), 1, 'euc-jp')
+    " call nesk#define_table(nesk#table#skkdict#new_multi('skkdict', [userdict, sysdict]))
+    let s:loaded_kana_and_skkdict_table = 1
   endif
 
   let nesk = nesk#get_instance()
