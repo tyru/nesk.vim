@@ -45,8 +45,8 @@ function! s:new_multi(errs) abort
   if type(a:errs) isnot# v:t_list || empty(a:errs)
     return s:NIL
   endif
-  if len(a:errs) is# 1
-    return a:errs[0]
+  if len(errs) is# 1
+    return errs[0]
   endif
   let [ex, tp] = [[], []]
   for err in errs
