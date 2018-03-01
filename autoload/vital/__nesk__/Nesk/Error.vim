@@ -56,7 +56,7 @@ function! s:new_multi(errs) abort
   return {
   \ 'exception': join(ex, "\n"),
   \ 'throwpoint': join(tp, "\n"),
-  \ 'errs': errs,
+  \ 'errors': errs,
   \}
 endfunction
 
@@ -73,7 +73,7 @@ function! s:flatten(...) abort
   return s:_flatmap(a:000, {
   \ e -> type(e) is# v:t_list ? s:_flatmap(copy(e), function('s:flatten')) :
   \      e is# s:NIL          ? [] :
-  \      s:is_multi_error(e)  ? s:flatten(e.errs) :
+  \      s:is_multi_error(e)  ? s:flatten(e.errors) :
   \                             [e]
   \})
 endfunction
