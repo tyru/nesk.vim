@@ -41,11 +41,13 @@ endfunction
 
 
 function! s:new_multi(errs) abort
-  let errs = s:flatten(a:errs)
-  if type(a:errs) isnot# v:t_list || empty(a:errs)
+  if type(a:errs) isnot# v:t_list
     return s:NIL
   endif
-  if len(errs) is# 1
+  let errs = s:flatten(a:errs)
+  if empty(errs)
+    return s:NIL
+  elseif len(errs) is# 1
     return errs[0]
   endif
   let [ex, tp] = [[], []]
