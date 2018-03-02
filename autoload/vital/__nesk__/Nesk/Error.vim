@@ -19,7 +19,8 @@ function! s:new(exception, ...) abort
 endfunction
 
 function! s:is_error(err) abort
-  return type(get(a:err, 'exception', 0)) is# v:t_string &&
+  return type(a:err) is# v:t_dict &&
+  \      type(get(a:err, 'exception', 0)) is# v:t_string &&
   \      type(get(a:err, 'throwpoint', 0)) is# v:t_string
 endfunction
 
