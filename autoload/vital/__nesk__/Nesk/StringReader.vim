@@ -46,6 +46,7 @@ endfunction
 " NOTE: `self._pos - self._last_read` must not be negative
 function! s:_StringReader_unread() abort dict
   let self._pos -= self._last_read
+  let self._last_read = 0
 endfunction
 
 " NOTE: `strlen(self._str) - self._pos` must not be negative

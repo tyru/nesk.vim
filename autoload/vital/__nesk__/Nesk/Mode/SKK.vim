@@ -37,6 +37,9 @@ let s:SKKDICT_TABLES = {
 \   }
 \ ]
 \}
+let s:BUFFERING_MARKER = "▽"
+let s:OKURI_MARKER = "▼"
+
 
 function! s:new_kana_mode() abort
   let state = {'next': function('s:_KanaState_next')}
@@ -143,16 +146,17 @@ endfunction
 " Table Normal State (kana, kata, hankata) {{{
 
 function! s:new_table_normal_state(table) abort
+  " TODO: Global variable (mode names and table names)
   return {
   \ '_table': a:table,
-  \ '_buf': '',
+  \ '_key': '',
+  \ '_ascii_mode_name': 'skk/ascii',
+  \ '_zenei_mode_name': 'skk/zenei',
+  \ '_kata_table_name': 'skk/kata',
+  \ '_hankata_table_name': 'skk/hankata',
   \ 'commit': function('s:_TableNormalState_commit'),
   \ 'next': function('s:_TableNormalState_next'),
   \}
-endfunction
-
-function! s:_TableNormalState_commit() abort dict
-  return self._buf
 endfunction
 
 " a:in.unread() continues nesk.filter() loop
@@ -161,145 +165,329 @@ endfunction
 function! s:_TableNormalState_next(in, out) abort dict
   let c = a:in.read_char()
   if c is# "\<C-j>"
-    if self._buf is# ''
-      call a:in.unread()
-      return [s:Nesk.new_disable_state(), s:Error.NIL]
-    else
-      return s:_do_commit(self, a:out)
+    if self._key is# ''
+      return [self, s:Error.NIL]
     endif
+    " Commit self._key
+    let bs = repeat("\<C-h>", strchars(self._key))
+    call a:out.write(bs)
+    let [pair, err] = self._table.get(self._key)
+    if err isnot# s:ERROR_NO_RESULTS
+      call a:out.write(pair[0])
+    endif
+    let self._key = ''
+    return [self, s:Error.NIL]
   elseif c is# "\<CR>"
-    return s:_do_enter(self, a:out)
+    let in = s:StringReader.new("\<C-j>")
+    let [state, err] = self.next(in, a:out)
+    if err isnot# s:Error.NIL
+      return [state, err]
+    endif
+    call a:out.write("\<CR>")
+    return [self, s:Error.NIL]
   elseif c is# "\<C-h>"
-    return s:_do_backspace(self, a:out)
+    if self._key isnot# ''
+      let self._key = strcharpart(self._key, 0, strchars(self._key)-1)
+    endif
+    call a:out.write("\<C-h>")
+    return [self, s:Error.NIL]
   elseif c is# "\x80"    " backspace is \x80 k b
-    call a:in.unread()
-    if a:in.read(3) is# "\<BS>"
-      return s:_do_backspace(self, a:out)
+    let str = c . a:in.read(2)
+    if str is# "\<BS>"
+      let in = s:StringReader.new("\<C-h>")
+      return self.next(in, a:out)
+    else
+      call a:in.unread()
     endif
     return [self, s:Error.NIL]
-  elseif c is# 'L'
-    if self._buf is# ''
-      call a:in.unread()
-      let name = self._table.name is# 'kana' ? 'skk/zenei' : 'skk/kana'
-      return [s:Nesk.new_mode_change_state(name), s:Error.NIL]
+  elseif c is# "\<Esc>"
+    " NOTE: Vim only key: commit self._buf and escape to Vim normal mode
+    let in = s:StringReader.new("\<C-j>")
+    let [state, err] = self.next(in, a:out)
+    if err isnot# s:Error.NIL
+      return [state, err]
+    endif
+    call a:out.write("\<Esc>")
+    return [s:Nesk.new_black_hole_state(), s:Error.NIL]
+  elseif c is# "\<C-g>"
+    if self._key isnot# ''
+      let bs = repeat("\<C-h>", strchars(self._key))
+      call a:out.write(bs)
+      let self._key = ''
     endif
     return [self, s:Error.NIL]
   elseif c is# 'l'
-    if self._buf is# ''
-      call a:in.unread()
-      let name = self._table.name is# 'kana' ? 'skk/ascii' : 'skk/kana'
-      return [s:Nesk.new_mode_change_state(name), s:Error.NIL]
-    endif
-    return [self, s:Error.NIL]
+    return s:_handle_mode_key(self, self._ascii_mode_name, a:in, a:out)
+  elseif c is# 'L'
+    return s:_handle_mode_key(self, self._zenei_mode_name, a:in, a:out)
   elseif c is# 'q'
-    if self._buf is# ''
-      call a:in.unread()
-      let name = self._table.name is# 'kana' ? 'skk/kata' : 'skk/kana'
-      return [s:Nesk.new_mode_change_state(name), s:Error.NIL]
-    endif
-    return [self, s:Error.NIL]
+    return s:_handle_table_key(self, self._kata_table_name, a:in, a:out)
   elseif c is# "\<C-q>"
-    if self._buf is# ''
-      call a:in.unread()
-      let name = self._table.name is# 'kana' ? 'skk/hankata' : 'skk/kana'
-      return [s:Nesk.new_mode_change_state(name), s:Error.NIL]
-    endif
-    return [self, s:Error.NIL]
+    return s:_handle_table_key(self, self._hankata_table_name, a:in, a:out)
   elseif c =~# 'Q'
-    " TODO
-    let str = '$'
-    call a:out.write(str)
-    return [self, s:Error.NIL]
+    call a:in.unread()
+    let state = s:new_table_buffering_state(self._table, s:BUFFERING_MARKER)
+    return [state, s:Error.NIL]
   elseif c =~# '^[A-Z]$'
-    let rest = a:in.read(a:in.size())
-    let in = s:StringReader.new('Q' . tolower(c) . rest)
-    let nesk = nesk#get_instance()
-    return nesk.transit(self, in, a:out)
-  elseif c is# "\<Esc>"
-    return s:_do_escape(self, a:out)
-  elseif c is# "\<C-g>"
-    return s:_do_cancel(self, a:out)
+    let in = s:StringReader.new('Q' . tolower(c))
+    return nesk#get_instance().transit(self, in, a:out)
   else
-    let [cands, err] = self._table.search(self._buf . c)
+    let [cands, err] = self._table.search(self._key . c)
     if err isnot# s:Error.NIL
       " This must not be occurred in this table object
       return [s:Error.NIL, s:Error.wrap(err, 'table.search() returned non-nil error')]
     endif
     if empty(cands)
-      let [pair, err] = self._table.get(self._buf)
+      let [pair, err] = self._table.get(self._key)
       if err is# s:ERROR_NO_RESULTS
-        let bs = repeat("\<C-h>", strchars(self._buf))
+        let bs = repeat("\<C-h>", strchars(self._key))
         let str = bs . c
-        let self._buf = c
+        let self._key = c
       else
-        let bs = repeat("\<C-h>", strchars(self._buf))
+        let bs = repeat("\<C-h>", strchars(self._key))
         let str = bs . pair[0] . pair[1] . c
-        let self._buf = pair[1] . c
+        let self._key = pair[1] . c
       endif
     elseif len(cands) is# 1
-      let bs = repeat("\<C-h>", strchars(self._buf))
+      let bs = repeat("\<C-h>", strchars(self._key))
       let pair = cands[0][1]
       let str = bs . pair[0] . pair[1]
-      let self._buf = pair[1]
+      let self._key = pair[1]
     else
       let str = c
-      let self._buf .= c
+      let self._key .= c
     endif
     call a:out.write(str)
     return [self, s:Error.NIL]
   endif
 endfunction
 
-function! s:_do_escape(state, out) abort
-  if a:state._buf isnot# ''
-    let bs = repeat("\<C-h>", strchars(a:state._buf))
-    call a:out.write(bs)
-    let [pair, err] = a:state._table.get(a:state._buf)
-    if err isnot# s:ERROR_NO_RESULTS
-      call a:out.write(pair[0])
+function! s:_handle_mode_key(state, mode_name, in, out) abort
+  if a:state._key isnot# ''
+    " Commit a:state._key and change mode
+    call a:in.unread()
+    return a:state.next(s:StringReader.new("\<C-j>"), a:out)
+  endif
+  " Change mode (must leave one character at least for ModeChangeState)
+  call a:in.unread()
+  let state = s:Nesk.new_mode_change_state(a:mode_name)
+  return [state, s:Error.NIL]
+endfunction
+
+function! s:_handle_table_key(state, table_name, in, out) abort
+  if a:state._key isnot# ''
+    " Commit a:state._key and change table
+    call a:in.unread()
+    return a:state.next(s:StringReader.new("\<C-j>"), a:out)
+  endif
+  " Change table
+  if a:state._table.name is# a:table_name
+    " Do nothing
+    return [self, s:Error.NIL]
+  endif
+  let [table, err] = nesk#get_instance().get_table(a:table_name)
+  if err isnot# s:Error.NIL
+    let err = s:Error.wrap(err, 'Cannot load ' . a:table_name . ' table')
+    return [s:Error.NIL, err]
+  endif
+  let state = s:new_table_normal_state(table)
+  return [state, s:Error.NIL]
+endfunction
+
+function! s:_TableNormalState_commit() abort dict
+  return repeat("\<C-h>", strchars(self._key))
+endfunction
+
+
+function! s:new_table_buffering_state(table, marker) abort
+  " TODO: Global variable (mode names and table names)
+  return {
+  \ '_table': a:table,
+  \ '_marker': a:marker,
+  \ '_key': '',
+  \ '_converted_key': [],
+  \ '_ascii_mode_name': 'skk/ascii',
+  \ '_buf': [],
+  \ 'commit': function('s:_TableBufferingState_commit'),
+  \ 'next': function('s:_TableBufferingState_next0'),
+  \}
+endfunction
+
+function! s:_TableBufferingState_next0(in, out) abort dict
+  call a:in.read_char()
+  call a:out.write(self._marker)
+  let state = extend(deepcopy(self), {
+  \ 'next': function('s:_TableBufferingState_next1')
+  \})
+  return [state, s:Error.NIL]
+endfunction
+
+function! s:_TableBufferingState_next1(in, out) abort dict
+  let c = a:in.read_char()
+  if c is# "\<C-j>"
+    if self._key isnot# ''
+      let err = s:_convert_key(self, a:in, a:out)
+      if err isnot# s:Error.NIL
+        return [self, err]
+      endif
+      let self._key = ''
+      " Commit self._buf and back to TableNormalState
+      call a:in.unread()
+      return self.next(a:in, a:out)
     endif
-    let a:state._buf = ''
-  endif
-  call a:out.write("\<Esc>")
-  return [a:state, s:Error.NIL]
-endfunction
-
-function! s:_do_cancel(state, out) abort
-  if a:state._buf isnot# ''
-    let bs = repeat("\<C-h>", strchars(a:state._buf))
-    call a:out.write(bs)
-    let a:state._buf = ''
-  endif
-  return [a:state, s:Error.NIL]
-endfunction
-
-function! s:_do_backspace(state, out) abort
-  let str = "\<C-h>"
-  if a:state._buf isnot# ''
-    let a:state._buf = strcharpart(a:state._buf, 0, strchars(a:state._buf)-1)
-  endif
-  call a:out.write(str)
-  return [a:state, s:Error.NIL]
-endfunction
-
-function! s:_do_enter(state, out) abort
-  if a:state._buf isnot# ''
-    let bs = repeat("\<C-h>", strchars(a:state._buf))
-    call a:out.write(bs)
-    let [pair, err] = a:state._table.get(a:state._buf)
-    if err isnot# s:ERROR_NO_RESULTS
-      call a:out.write(pair[0])
+    " Commit self._buf and back to TableNormalState
+    let inserted = self._marker . join(self._buf, '') . self._key
+    let bs = repeat("\<C-h>", strchars(inserted))
+    call a:out.write(bs . join(self._buf, ''))
+    let state = s:new_table_normal_state(self._table)
+    return [state, s:Error.NIL]
+  elseif c is# "\<CR>"
+    " Back to TableNormalState
+    let in = s:StringReader.new("\<C-j>")
+    let [state, err] = self.next(in, a:out)
+    if err isnot# s:Error.NIL
+      return [state, err]
     endif
-    let a:state._buf = ''
+    " Handle <CR> in TableNormalState
+    call a:in.unread()
+    return [state, s:Error.NIL]
+  elseif c is# "\<C-h>"
+    if self._key isnot# ''
+      " Remove last char (key)
+      let self._key = strcharpart(self._key, 0, strchars(self._key)-1)
+      call a:out.write("\<C-h>")
+      return [self, s:Error.NIL]
+    elseif !empty(self._converted_key)
+      " Remove last char (buf)
+      call remove(self._converted_key, -1)
+      call a:out.write("\<C-h>")
+      return [self, s:Error.NIL]
+    endif
+    " Back to TableNormalState
+    let bs = repeat("\<C-h>", strchars(self._marker) + len(self._buf))
+    call a:out.write(bs . join(self._buf, ''))
+    let state = s:new_table_normal_state(self._table)
+    return [state, s:Error.NIL]
+  elseif c is# "\x80"    " backspace is \x80 k b
+    let str = c . a:in.read(2)
+    if str is# "\<BS>"
+      let in = s:StringReader.new("\<C-h>")
+      return self.next(in, a:out)
+    else
+      call a:in.unread()
+    endif
+    return [self, s:Error.NIL]
+  elseif c is# "\<Esc>"
+    " NOTE: Vim only key: commit self._buf and escape to Vim normal mode
+    let in = s:StringReader.new("\<C-j>")
+    let [state, err] = self.next(in, a:out)
+    if err isnot# s:Error.NIL
+      return [state, err]
+    endif
+    call a:out.write("\<Esc>")
+    return [s:Nesk.new_black_hole_state(), s:Error.NIL]
+  elseif c is# "\<C-g>"
+    if !empty(self._buf)
+      " Remove inserted string
+      let n = strchars(self._marker) + len(self._buf) + strchars(self._key)
+      let bs = repeat("\<C-h>", n)
+      call a:out.write(bs)
+    endif
+    " Back to TableNormalState
+    let state = s:new_table_normal_state(self._table)
+    return [state, s:Error.NIL]
+  elseif c is# 'l'
+    " Change to ascii mode
+    if empty(self._converted_key)
+      let n = strchars(self._marker) + len(self._buf) + strchars(self._key)
+      let bs = repeat("\<C-h>", n)
+      call a:out.write(bs)
+      " Change mode (must leave one character at least for ModeChangeState)
+      call a:in.unread()
+      let state = s:Nesk.new_mode_change_state(self._ascii_mode_name)
+      return [state, s:Error.NIL]
+    endif
+    " NOTE: Vim only behavior: if a:state._converted_key is not empty,
+    " insert the string to buffer (e.g. "Kanjil" -> "kanji")
+    call a:out.write(join(self._converted_key, ''))
+    let self._converted_key = []
+    let self._buf = []
+    call a:in.unread()
+    return self.next(a:in, a:out)
+  elseif c is# 'L'
+    " NOTE: Vim only behavior: if a:state._converted_key is not empty,
+    " insert the string to buffer (e.g. "KanjiL" -> "ｋａｎｊｉ")
+    " TODO
+  elseif c is# 'q'
+    " NOTE: Vim only behavior: if a:state._converted_key is not empty,
+    " insert the string to buffer (e.g. "Kanjiq" -> "カンジ")
+    " TODO
+  elseif c is# "\<C-q>"
+    " NOTE: Vim only behavior: if a:state._converted_key is not empty,
+    " insert the string to buffer (e.g. "Kanjiq" -> "ｶﾝｼﾞ")
+    " TODO
+  elseif c =~# 'Q'
+    " TODO
+    let state = s:new_table_okuri_state(self._table, s:OKURI_MARKER)
+    return [state, s:Error.NIL]
+  elseif c =~# '^[A-Z]$'
+    let in = s:StringReader.new('Q' . tolower(c))
+    return nesk#get_instance().transit(self, in, a:out)
+  else
+    let [cands, err] = self._table.search(self._key . c)
+    if err isnot# s:Error.NIL
+      " This must not be occurred in this table object
+      return [s:Error.NIL, s:Error.wrap(err, 'table.search() returned non-nil error')]
+    endif
+    if empty(cands)
+      let [pair, err] = self._table.get(self._key)
+      if err is# s:ERROR_NO_RESULTS
+        let bs = repeat("\<C-h>", strchars(self._key))
+        call a:out.write(bs)
+        let self._key = c
+      endif
+      let err = s:_convert_key(self, a:in, a:out)
+      if err isnot# s:Error.NIL
+        return [self, err]
+      endif
+    elseif len(cands) is# 1
+      " Convert self._key and append the result if succeeded
+      let err = s:_convert_key(self, a:in, a:out)
+      if err isnot# s:Error.NIL
+        return [self, err]
+      endif
+    else
+      call a:out.write(c)
+      let self._key .= c
+    endif
+    return [self, s:Error.NIL]
   endif
-  call a:out.write("\<CR>")
-  return [a:state, s:Error.NIL]
 endfunction
 
-function! s:_do_commit(state, out) abort
-  call a:out.write(a:state._buf)
-  let a:state._buf = ''
-  return [a:state, s:Error.NIL]
+" Convert self._key and append the result if succeeded
+" XXX: Detect recursive table mapping?
+function! s:_convert_key(state, in, out) abort
+  let err = s:Error.NIL
+  while a:state._key isnot# ''
+    let [pair, err] = a:state._table.get(a:state._key)
+    if err is# s:ERROR_NO_RESULTS
+      break
+    endif
+    if err isnot# s:Error.NIL
+      return err
+    endif
+    let bs = repeat("\<C-h>", strchars(self._key))
+    call a:out.write(bs . pair[0] . pair[1])
+    let a:state._buf += [pair[0]]
+    let a:state._converted_key += [a:state._key]
+    let a:state._key = pair[1]
+  endwhile
+  return s:Error.NIL
+endfunction
+
+function! s:_TableBufferingState_commit() abort dict
+  let bs = repeat("\<C-h>", len(self._buf))
+  return bs . join(self._buf, '')
 endfunction
 
 " }}}
@@ -315,6 +503,7 @@ endfunction
 function! s:_AsciiState_next(in, out) abort dict
   let c = a:in.read_char()
   if c is# "\<C-j>"
+    " Change mode (must leave one character at least for ModeChangeState)
     call a:in.unread()
     return [s:Nesk.new_mode_change_state('skk/kana'), s:Error.NIL]
   else
@@ -357,6 +546,7 @@ endfunction
 function! s:_ZeneiTable_next1(in, out) abort dict
   let c = a:in.read_char()
   if c is# "\<C-j>"
+    " Change mode (must leave one character at least for ModeChangeState)
     return [s:Nesk.new_mode_change_state('skk/kana'), s:Error.NIL]
   else
     let [str, err] = self._table.get(c)

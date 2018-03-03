@@ -8,10 +8,11 @@ function! s:_vital_loaded(V) abort
   let s:Error = a:V.import('Nesk.Error')
   let s:StringReader = a:V.import('Nesk.StringReader')
   let s:StringWriter = a:V.import('Nesk.StringWriter')
+  let s:VimBufferWriter = a:V.import('Nesk.VimBufferWriter')
 endfunction
 
 function! s:_vital_depends() abort
-  return ['Nesk.Error', 'Nesk.StringReader', 'Nesk.StringWriter']
+  return ['Nesk.Error', 'Nesk.StringReader', 'Nesk.StringWriter', 'Nesk.VimBufferWriter']
 endfunction
 
 
@@ -24,16 +25,17 @@ function! s:new() abort
   \ '_active_mode_name': '',
   \ '_initial_mode': 'skk/kana',
   \ '_keep_state': 1,
-  \ '_enabled_log': 0,
+  \ '_enabled_log': 1,
   \ '_log_file': expand('~/nesk.log'),
   \})
   if nesk._enabled_log && isdirectory(fnamemodify(nesk._log_file, ':h'))
-    let nesk.transit = function('s:_Nesk_transit_log')
+    let nesk.transit_may_log = function('s:_Nesk_transit_log')
     let nesk.log = function('s:_Nesk_log')
   else
-    let nesk.transit = function('s:_Nesk_transit_nolog')
+    let nesk.transit_may_log = function('s:_Nesk_transit_nolog')
     let nesk.log = function('s:_nop')
   endif
+  let nesk.transit = function('s:_Nesk_transit_nolog')
   return nesk
 endfunction
 
@@ -52,12 +54,16 @@ function! s:_Nesk_enable() abort dict
   augroup nesk-disable-hook
     autocmd!
     if self._keep_state
-      autocmd InsertLeave <buffer> call nesk#init_active_mode()
+      " Ignore return value of nesk.init_active_mode()
+      autocmd InsertLeave <buffer> call nesk#get_instance().init_active_mode()
     else
       autocmd InsertLeave <buffer> call nesk#disable()
     endif
   augroup END
   call self.set_states(mode_name, [mode.initial_state])
+  " Reset self._active_mode_name because self.set_active_mode_name() will fail
+  " if self._active_mode_name == mode_name
+  let self._active_mode_name = ''
   let err = self.set_active_mode_name(mode_name)
   if err isnot# s:Error.NIL
     return ['', err]
@@ -297,7 +303,7 @@ endfunction
 function! s:_Nesk_map_keys() abort dict
   for lhs in s:get_default_mapped_keys()
     let lhs = substitute(lhs, '\V|', '<Bar>', 'g')
-    execute 'lnoremap <expr><nowait>' lhs 'nesk#filter(' . string(lhs) . ')'
+    execute 'lnoremap <expr><nowait>' lhs 'nesk#rewrite(' . string(lhs) . ')'
   endfor
 endfunction
 let s:Nesk.map_keys = function('s:_Nesk_map_keys')
@@ -342,7 +348,7 @@ function! s:get_default_mapped_keys() abort
   return keys
 endfunction
 
-function! s:_Nesk_filter(str) abort dict
+function! s:_Nesk_rewrite(str) abort dict
   let [states, err] = self.get_active_states()
   if err isnot# s:Error.NIL
     return ['', err]
@@ -351,7 +357,7 @@ function! s:_Nesk_filter(str) abort dict
   let in = s:StringReader.new(a:str)
   let out = s:StringWriter.new()
   try
-    let [state, err] = self.transit(state, in, out)
+    let [state, err] = self.transit_may_log(state, in, out)
     if err is# s:Error.NIL
       let states[-1] = state
       return [out.to_string(), s:Error.NIL]
@@ -364,32 +370,43 @@ function! s:_Nesk_filter(str) abort dict
   let [str, err2] = self.disable()
   return [str, s:Error.append(err, err2)]
 endfunction
+let s:Nesk.rewrite = function('s:_Nesk_rewrite')
+
+function! s:_Nesk_filter(str) abort dict
+  let [rawstr, err] = self.rewrite(a:str)
+  if err isnot# s:Error.NIL
+    return ['', err]
+  endif
+  let buf = s:VimBufferWriter.new()
+  call buf.write(rawstr)
+  return [buf.to_string(), s:Error.NIL]
+endfunction
 let s:Nesk.filter = function('s:_Nesk_filter')
 
-function! s:_Nesk_transit_log(state, in, out) abort
+function! s:_Nesk_transit_log(state, in, out) abort dict
   let state = a:state
-  call self.log(printf('transit(): input=%s',
-  \                     string(a:str)))
+  call self.log('transit() begin')
   while a:in.size() ># 0
-    call self.log(printf('  state=%s,in=%s,out=%s',
-    \                     s:_state_string(state),
+    call self.log(printf('  in=%s,out=%s,state=%s',
     \                     string(a:in.peek(a:in.size())),
-    \                     string(a:out.to_string())))
+    \                     string(a:out.to_string()),
+    \                     s:_state_string(state),
+    \))
     let [state, err] = state.next(a:in, a:out)
     if err isnot# s:Error.NIL
       return [state, err]
     endif
   endwhile
-  call self.log(printf('  state=%s,in=%s,out=%s',
-  \                     s:_state_string(state),
+  call self.log(printf('  in=%s,out=%s,state=%s',
   \                     string(a:in.peek(a:in.size())),
-  \                     string(a:out.to_string())))
-  call self.log(printf('transit(): output=%s',
-  \                     string(a:out.to_string())))
+  \                     string(a:out.to_string()),
+  \                     s:_state_string(state),
+  \))
+  call self.log('transit() end')
   return [state, s:Error.NIL]
 endfunction
 
-function! s:_Nesk_transit_nolog(state, in, out) abort
+function! s:_Nesk_transit_nolog(state, in, out) abort dict
   let state = a:state
   while a:in.size() ># 0
     let [state, err] = state.next(a:in, a:out)
@@ -402,18 +419,26 @@ endfunction
 
 " * Transform table object into '<table "{name}">'
 " * Transform Funcref
-function! s:_state_string(obj) abort
+function! s:_state_string(obj, ...) abort
+  let level = a:0 ? a:1 : 0
   if type(a:obj) is# v:t_dict
     if s:_is_table(a:obj)
       return '<table "' . a:obj.name . '">'
     endif
+    if level ># 0
+      return '{...}'
+    endif
     let elems = []
     for key in keys(a:obj)
-      let elems += [string(key) . ': ' . s:_state_string(a:obj[key])]
+      let elems += [string(key) . ': ' . s:_state_string(a:obj[key], level + 1)]
     endfor
     return '{' . join(elems, ', ') . '}'
   elseif type(a:obj) is# v:t_func
-    return substitute(string(a:obj), '^function(''[^'']\+''\zs, .*\ze)$', '', '')
+    let value = string(a:obj)
+    let m = matchlist(value, '^function(''\([^'']\+\)'', .*)$')
+    return empty(m) ? value : '<func "' . m[1] . '">'
+  elseif type(a:obj) is# v:t_list
+    return '[...]'
   else
     return string(a:obj)
   endif
@@ -441,7 +466,7 @@ endfunction
 " Read one character, which is dummy to invoke this function immediately.
 " Caller must leave one character in a:in at least.
 function! s:_ModeChangeState_next(in, out) abort dict
-  call a:in.read(1)
+  call a:in.read_char()
   let nesk = nesk#get_instance()
   let err = nesk.set_active_mode_name(self._mode_name)
   if err isnot# s:Error.NIL
@@ -463,7 +488,7 @@ function! s:new_disable_state() abort
 endfunction
 
 function! s:_DisableState_next(in, out) abort dict
-  " Read all string to stop nesk.filter() loop
+  " Read all string to stop nesk.rewrite() loop
   call a:in.read(a:in.size())
   let nesk = nesk#get_instance()
   let [str, err] = nesk.disable()
@@ -472,17 +497,21 @@ function! s:_DisableState_next(in, out) abort dict
     return [s:Error.NIL, err]
   endif
   call a:out.write(str)
-  return [s:BLACKHOLE_STATE, s:Error.NIL]
+  return [s:BLACK_HOLE_STATE, s:Error.NIL]
 endfunction
 
-let s:BLACKHOLE_STATE = {}
+function! s:new_black_hole_state() abort
+  return s:BLACK_HOLE_STATE
+endfunction
 
-" Read all string from a:in to stop the nesk.filter()'s loop
-function! s:_EscapeState_next(in, out) abort dict
+let s:BLACK_HOLE_STATE = {}
+
+" Read all string from a:in to stop the nesk.rewrite()'s loop
+function! s:_BlackHoleState_next(in, out) abort dict
   call a:in.read(a:in.size())
   return [self, s:Error.NIL]
 endfunction
-let s:BLACKHOLE_STATE.next = function('s:_EscapeState_next')
+let s:BLACK_HOLE_STATE.next = function('s:_BlackHoleState_next')
 
 
 function! s:_nop(...) abort

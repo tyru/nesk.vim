@@ -54,13 +54,14 @@ function! nesk#enabled() abort
   return nesk#get_instance().enabled()
 endfunction
 
-function! nesk#init_active_mode() abort
-  let err = nesk#get_instance().init_active_mode()
+function! nesk#rewrite(str) abort
+  let [str, err] = nesk#get_instance().rewrite(a:str)
   if err is# s:Error.NIL
-    return
+    return str
   endif
   call s:echomsg('ErrorMsg', err.exception . ' at ' . err.throwpoint)
   sleep 2
+  return ''
 endfunction
 
 function! nesk#filter(str) abort
