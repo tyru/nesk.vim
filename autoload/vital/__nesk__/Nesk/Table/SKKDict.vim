@@ -53,26 +53,13 @@ function! s:_SKKSortedDictTable_get(key) abort dict
     let min = self._nasi_index
     let max = len(self._lines) - 1
   endif
-  let key = iconv(a:key, &l:encoding, self._encoding)
-  if key is# ''
-    let msg = printf('iconv(%s, %s, %s) failed',
-    \                 string(a:key), &l:encoding, self._encoding)
-    return [s:Error.NIL, s:Error.new(msg)]
-  endif
 
-  let [min, max] = s:_bin_search(self._lines, key, okuri, 100, min, max)
-  let idx = s:_match_head(self._lines, key . ' ', min, max)
+  let [min, max] = s:_bin_search(self._lines, a:key, okuri, 100, min, max)
+  let idx = s:_match_head(self._lines, a:key . ' ', min, max)
   if idx is# -1
     return [s:Error.NIL, s:ERROR_NO_RESULTS]
   endif
-
-  let line = iconv(self._lines[idx], self._encoding, &l:encoding)
-  if line is# ''
-    let msg = printf('iconv(%s, %s, %s) failed',
-    \                 string(line), self._encoding, &l:encoding)
-    return [s:Error.NIL, s:Error.new(msg)]
-  endif
-  return [s:_parse_line(line), s:Error.NIL]
+  return [s:_parse_line(self._lines[idx]), s:Error.NIL]
 endfunction
 
 function! s:_SKKSortedDictTable_search(prefix, ...) abort dict
@@ -85,20 +72,14 @@ function! s:_SKKSortedDictTable_search(prefix, ...) abort dict
     let [entry, err] = self.get(a:prefix)
     return [[entry], err]
   endif
-  let prefix = iconv(a:prefix, &l:encoding, self._encoding)
-  if prefix is# ''
-    let msg = printf('iconv(%s, %s, %s) failed',
-    \                 string(a:prefix), &l:encoding, self._encoding)
-    return [s:Error.NIL, s:Error.new(msg)]
-  endif
 
   let lines = []
   for [okuri, min, max] in [
   \ [1, self._ari_index, self._nasi_index - 1],
   \ [0, self._nasi_index, len(self._lines) - 1],
   \]
-    let [min, max] = s:_bin_search(self._lines, prefix, okuri, 100, min, max)
-    let start = s:_match_head(self._lines, prefix, min, max)
+    let [min, max] = s:_bin_search(self._lines, a:prefix, okuri, 100, min, max)
+    let start = s:_match_head(self._lines, a:prefix, min, max)
     if start is# -1 || start >=# max
       continue
     endif
@@ -106,7 +87,7 @@ function! s:_SKKSortedDictTable_search(prefix, ...) abort dict
     " Get lines until limit
     let i = start + 1
     let len = len(self._lines)
-    while i <# len && !stridx(self._lines[i], prefix)
+    while i <# len && !stridx(self._lines[i], a:prefix)
       let i += 1
     endwhile
     let end = i - 1
@@ -114,16 +95,7 @@ function! s:_SKKSortedDictTable_search(prefix, ...) abort dict
     if limit >= 0 && start + limit < end
       let end = start + limit
     endif
-
-    for line in self._lines[start : end]
-      let line = iconv(line, self._encoding, &l:encoding)
-      if line is# ''
-        let msg = printf('iconv(%s, %s, %s) failed',
-        \                 string(line), self._encoding, &l:encoding)
-        return [s:Error.NIL, s:Error.new(msg)]
-      endif
-      let lines += [line]
-    endfor
+    let lines += self._lines[start : end]
   endfor
   return [map(lines, {_,line -> s:_parse_line(line)}), s:Error.NIL]
 endfunction
@@ -144,23 +116,11 @@ function! s:_SKKUnsortedDictTable_get(key) abort dict
   if a:key is# ''
     return [s:Error.NIL, s:ERROR_NO_RESULTS]
   endif
-  let key = iconv(a:key, &l:encoding, self._encoding)
-  if key is# ''
-    let msg = printf('iconv(%s, %s, %s) failed',
-    \                 string(a:key), &l:encoding, self._encoding)
-    return [s:Error.NIL, s:Error.new(msg)]
-  endif
   let idx = s:_match_head(self._lines, a:key . ' ', 0, -1)
   if idx is# -1
     return [s:Error.NIL, s:ERROR_NO_RESULTS]
   endif
-  let line = iconv(self._lines[idx], self._encoding, &l:encoding)
-  if line is# ''
-    let msg = printf('iconv(%s, %s, %s) failed',
-    \                 string(line), self._encoding, &l:encoding)
-    return [s:Error.NIL, s:Error.new(msg)]
-  endif
-  return [s:_parse_line(line), s:Error.NIL]
+  return [s:_parse_line(self._lines[idx]), s:Error.NIL]
 endfunction
 
 function! s:_SKKUnsortedDictTable_search(prefix, ...) abort dict
@@ -173,12 +133,6 @@ function! s:_SKKUnsortedDictTable_search(prefix, ...) abort dict
     let [entry, err] = self.get(a:prefix)
     return [[entry], err]
   endif
-  let prefix = iconv(a:prefix, &l:encoding, self._encoding)
-  if prefix is# ''
-    let msg = printf('iconv(%s, %s, %s) failed',
-    \                 string(a:prefix), &l:encoding, self._encoding)
-    return [s:Error.NIL, s:Error.new(msg)]
-  endif
 
   " Get lines until limit
   let limit = a:0 && type(a:1) is# v:t_number ? a:1 : 1/0
@@ -186,17 +140,11 @@ function! s:_SKKUnsortedDictTable_search(prefix, ...) abort dict
   let start = -1
   let max = len(self._lines)
   while len(lines) <# limit
-    let start = s:_match_head(self._lines, prefix, start + 1, -1)
+    let start = s:_match_head(self._lines, a:prefix, start + 1, -1)
     if start is# -1 || start >=# max
       break
     endif
-    let line = iconv(self._lines[start], self._encoding, &l:encoding)
-    if line is# ''
-      let msg = printf('iconv(%s, %s, %s) failed',
-      \                 string(self._lines[start]), self._encoding, &l:encoding)
-      return [s:Error.NIL, s:Error.new(msg)]
-    endif
-    let lines += [line]
+    let lines += [self._lines[start]]
   endwhile
   return [map(lines, {_,line -> s:_parse_line(line)}), s:Error.NIL]
 endfunction
@@ -229,7 +177,11 @@ function! s:_parse(table) abort
   if nasi is# -1
     return s:Error.new('no okuri-nasi marker')
   endif
-  let a:table._lines = lines
+  if a:table._encoding ==? &l:encoding
+    let a:table._lines = lines
+  else
+    let a:table._lines = map(lines, 'iconv(v:val, a:table._encoding, &l:encoding)')
+  endif
   let a:table._ari_index = ari
   let a:table._nasi_index = nasi
   let a:table._lasttime = getftime(a:table._path)
@@ -244,13 +196,8 @@ function! s:_parse_line(line) abort
 endfunction
 
 function! s:_match_head(lines, prefix, start, end) abort
-  let lines = a:lines[a:start : a:end]
-  for i in range(len(lines))
-    if !stridx(lines[i], a:prefix)
-      return a:start + i
-    endif
-  endfor
-  return -1
+  let re = '^' . join(map(split(a:prefix, '\zs'), {_,c -> '\%d' . char2nr(c)}), '')
+  return match(a:lines[: a:end], re, a:start)
 endfunction
 
 
