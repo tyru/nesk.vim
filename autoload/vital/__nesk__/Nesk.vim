@@ -18,13 +18,13 @@ endfunction
 
 function! s:new() abort
   let logfile = expand('~/nesk.log')
-  if 1 && isdirectory(fnamemodify(logfile, ':h'))
+  if 0 && isdirectory(fnamemodify(logfile, ':h'))
     let logger = s:Log.new({
     \ 'output': 'File',
     \ 'file_path': logfile,
     \ 'file_redir': 1,
     \})
-  elseif 1
+  elseif 0
     let logger = s:Log.new({
     \ 'output': 'Echomsg',
     \ 'echomsg_hl': ['WarningMsg', 'WarningMsg', 'WarningMsg'],
