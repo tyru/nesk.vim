@@ -61,7 +61,7 @@ function! s:_SKKSortedDictTable_get(key) abort dict
   endif
 
   let [min, max] = s:_bin_search(self._lines, key, okuri, 100, min, max)
-  let idx = match(self._lines[: max], '^\V' . key . ' ', min)
+  let idx = s:_match_head(self._lines, key . ' ', min, max)
   if idx is# -1
     return [s:Error.NIL, s:ERROR_NO_RESULTS]
   endif
@@ -98,15 +98,18 @@ function! s:_SKKSortedDictTable_search(prefix, ...) abort dict
   \ [0, self._nasi_index, len(self._lines) - 1],
   \]
     let [min, max] = s:_bin_search(self._lines, prefix, okuri, 100, min, max)
-    let start = match(self._lines[: max], '^\V' . prefix, min)
+    let start = s:_match_head(self._lines, prefix, min, max)
     if start is# -1 || start >=# max
       continue
     endif
 
     " Get lines until limit
-    let [head, c] = matchlist(prefix, '^\(.*\)\(.\)$')[1:2]
-    let end = match(self._lines[: max], '^\V' . head . '\m[^' . c . ']', start + 1)
-    let end = end is# -1 ? len(self._lines) - 1 : end
+    let i = start + 1
+    let len = len(self._lines)
+    while i <# len && !stridx(self._lines[i], prefix)
+      let i += 1
+    endwhile
+    let end = i - 1
     let limit = a:0 && type(a:1) is# v:t_number ? a:1 : -1
     if limit >= 0 && start + limit < end
       let end = start + limit
@@ -147,7 +150,7 @@ function! s:_SKKUnsortedDictTable_get(key) abort dict
     \                 string(a:key), &l:encoding, self._encoding)
     return [s:Error.NIL, s:Error.new(msg)]
   endif
-  let idx = match(self._lines, '^\V' . a:key . ' ')
+  let idx = s:_match_head(self._lines, a:key . ' ', 0, -1)
   if idx is# -1
     return [s:Error.NIL, s:ERROR_NO_RESULTS]
   endif
@@ -183,7 +186,7 @@ function! s:_SKKUnsortedDictTable_search(prefix, ...) abort dict
   let start = -1
   let max = len(self._lines)
   while len(lines) <# limit
-    let start = match(self._lines, '^\V' . prefix, start + 1)
+    let start = s:_match_head(self._lines, prefix, start + 1, -1)
     if start is# -1 || start >=# max
       break
     endif
@@ -238,6 +241,16 @@ function! s:_parse_line(line) abort
   let key = list[0][:-2]
   let candidates = list[1:]
   return [key] + map(candidates, {_,c -> split(c, ';')})
+endfunction
+
+function! s:_match_head(lines, prefix, start, end) abort
+  let lines = a:lines[a:start : a:end]
+  for i in range(len(lines))
+    if !stridx(lines[i], a:prefix)
+      return a:start + i
+    endif
+  endfor
+  return -1
 endfunction
 
 
