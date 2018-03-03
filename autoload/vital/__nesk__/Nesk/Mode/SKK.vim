@@ -230,7 +230,14 @@ function! s:_TableNormalState_next(in, out) abort dict
     return [state, s:Error.NIL]
   elseif c =~# '^[A-Z]$'
     let in = s:StringReader.new('Q' . tolower(c))
-    return nesk#get_instance().transit(self, in, a:out)
+    let state = self
+    while in.size() ># 0
+      let [state, err] = state.next(in, a:out)
+      if err isnot# s:Error.NIL
+        return [state, err]
+      endif
+    endwhile
+    return [state, s:Error.NIL]
   else
     let [cands, err] = self._table.search(self._key . c)
     if err isnot# s:Error.NIL
@@ -326,18 +333,15 @@ function! s:_TableBufferingState_next1(in, out) abort dict
   let c = a:in.read_char()
   if c is# "\<C-j>"
     if self._key isnot# ''
+      " Commit self._buf
       let err = s:_convert_key(self, a:in, a:out)
       if err isnot# s:Error.NIL
         return [self, err]
       endif
       let self._key = ''
-      " Commit self._buf and back to TableNormalState
-      call a:in.unread()
-      return self.next(a:in, a:out)
     endif
-    " Commit self._buf and back to TableNormalState
-    let inserted = self._marker . join(self._buf, '') . self._key
-    let bs = repeat("\<C-h>", strchars(inserted))
+    " Back to TableNormalState
+    let bs = repeat("\<C-h>", strchars(self._marker) + len(self._buf))
     call a:out.write(bs . join(self._buf, ''))
     let state = s:new_table_normal_state(self._table)
     return [state, s:Error.NIL]
@@ -432,12 +436,19 @@ function! s:_TableBufferingState_next1(in, out) abort dict
     return [state, s:Error.NIL]
   elseif c =~# '^[A-Z]$'
     let in = s:StringReader.new('Q' . tolower(c))
-    return nesk#get_instance().transit(self, in, a:out)
+    let state = self
+    while in.size() ># 0
+      let [state, err] = state.next(in, a:out)
+      if err isnot# s:Error.NIL
+        return [state, err]
+      endif
+    endwhile
+    return [state, s:Error.NIL]
   else
     let [cands, err] = self._table.search(self._key . c)
     if err isnot# s:Error.NIL
       " This must not be occurred in this table object
-      return [s:Error.NIL, s:Error.wrap(err, 'table.search() returned non-nil error')]
+      return [self, s:Error.wrap(err, 'table.search() returned non-nil error')]
     endif
     if empty(cands)
       let [pair, err] = self._table.get(self._key)
@@ -451,7 +462,12 @@ function! s:_TableBufferingState_next1(in, out) abort dict
         return [self, err]
       endif
     elseif len(cands) is# 1
-      " Convert self._key and append the result if succeeded
+      let pair = cands[0][1]
+      let bs = repeat("\<C-h>", strchars(self._key))
+      call a:out.write(bs . pair[0] . pair[1])
+      let self._buf += [pair[0]]
+      let self._converted_key += [self._key . c]
+      let self._key = pair[1]
       let err = s:_convert_key(self, a:in, a:out)
       if err isnot# s:Error.NIL
         return [self, err]
@@ -476,7 +492,7 @@ function! s:_convert_key(state, in, out) abort
     if err isnot# s:Error.NIL
       return err
     endif
-    let bs = repeat("\<C-h>", strchars(self._key))
+    let bs = repeat("\<C-h>", strchars(a:state._key))
     call a:out.write(bs . pair[0] . pair[1])
     let a:state._buf += [pair[0]]
     let a:state._converted_key += [a:state._key]
