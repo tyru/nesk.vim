@@ -60,8 +60,8 @@ function! s:_validate_impl(impl, module_name) abort
   if type(get(a:impl, 'log', 0)) isnot# v:t_func
     throw 'Nesk.Log: new(): ' . a:module_name . '.new().log does not exist or not Funcref'
   endif
-  if has_key(a:impl, 'flush') && type(a:impl.flush) isnot# v:t_func
-    throw 'Nesk.Log: new(): ' . a:module_name . '.new().flush is not Funcref'
+  if type(get(a:impl, 'flush', 0)) isnot# v:t_func
+    throw 'Nesk.Log: new(): ' . a:module_name . '.new().flush does not exist or not Funcref'
   endif
   return a:impl
 endfunction

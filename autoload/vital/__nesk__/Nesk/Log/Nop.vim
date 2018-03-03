@@ -5,10 +5,13 @@ set cpo&vim
 
 
 function! s:new(options) abort
-  return {'log': function('s:_NopLogger_log')}
+  return {
+  \ 'log': function('s:_NopLogger_nop'),
+  \ 'flush': function('s:_NopLogger_nop'),
+  \}
 endfunction
 
-function! s:_NopLogger_log(...) abort dict
+function! s:_NopLogger_nop(...) abort dict
 endfunction
 
 

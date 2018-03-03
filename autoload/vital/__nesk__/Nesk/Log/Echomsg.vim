@@ -24,14 +24,23 @@ function! s:new(options) abort
   return {
   \ '_hl': hl,
   \ '_fmt': l:Fmt,
+  \ '_buf': [],
   \ 'log': function('s:_EchomsgLogger_log'),
+  \ 'flush': function('s:_EchomsgLogger_flush'),
   \}
 endfunction
 
 function! s:_EchomsgLogger_log(level, msg) abort dict
+  let self._buf += [[a:level, self._fmt(a:level, a:msg)]]
+endfunction
+
+function! s:_EchomsgLogger_flush() abort dict
   try
-    execute 'echohl' get(self._hl, a:level, 'None')
-    echomsg self._fmt(a:level, a:msg)
+    for [level, msg] in self._buf
+      execute 'echohl' get(self._hl, level, 'None')
+      echomsg msg
+    endfor
+    let self._buf = []
   finally
     echohl None
   endtry
