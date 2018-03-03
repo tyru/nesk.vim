@@ -13,6 +13,10 @@ function! s:new(options) abort
   if type(hl) isnot# v:t_list
     throw 'Nesk.Log.Echomsg: new(): options.echomsg_hl is not List'
   endif
+  let nomsg = get(a:options, 'echomsg_nomsg', 0)
+  if type(nomsg) isnot# v:t_number && type(nomsg) isnot# v:t_bool
+    throw 'Nesk.Log.Echomsg: new(): options.echomsg_nomsg is not Number or Bool'
+  endif
   let l:Fmt = get(a:options, 'echomsg_format', s:DEFAULT_FORMATTER)
   if type(l:Fmt) isnot# v:t_func
     throw 'Nesk.Log.Echomsg: new(): options.echomsg_format is not String nor Funcref'
@@ -25,6 +29,7 @@ function! s:new(options) abort
   \ '_hl': hl,
   \ '_fmt': l:Fmt,
   \ '_buf': [],
+  \ '_nomsg': nomsg,
   \ 'log': function('s:_EchomsgLogger_log'),
   \ 'flush': function('s:_EchomsgLogger_flush'),
   \}
@@ -38,7 +43,7 @@ function! s:_EchomsgLogger_flush() abort dict
   try
     for [level, msg] in self._buf
       execute 'echohl' get(self._hl, level, 'None')
-      echomsg msg
+      execute (self._nomsg ? 'echo' : 'echomsg') string(msg)
     endfor
     let self._buf = []
   finally
