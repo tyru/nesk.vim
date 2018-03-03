@@ -12,6 +12,7 @@ let s:DEFAULT_DEFAULT_LEVEL = 'INFO'
 let s:DEFAULT_OPTIONS = {
 \ 'levels': s:DEFAULT_LEVELS,
 \ 'default_level': s:DEFAULT_DEFAULT_LEVEL,
+\ 'autoflush': 0,
 \}
 
 function! s:_vital_loaded(V) abort
@@ -39,6 +40,10 @@ function! s:new(options) abort
   if type(default_level) isnot# v:t_string
     throw 'Nesk.Log: new(): received non-Dictionary options.default_level value'
   endif
+  let autoflush = a:options.autoflush
+  if type(autoflush) isnot# v:t_number && type(autoflush) isnot# v:t_bool
+    throw 'Nesk.Log: new(): received non-Bool options.autoflush value'
+  endif
   let [levels, lv_index] = s:_validate_levels(levels, default_level)
   let name = 'Nesk.Log.' . output
   let impl = s:V.import(name).new(a:options)
@@ -46,6 +51,7 @@ function! s:new(options) abort
   let logger = {
   \ '_impl': impl,
   \ '_current_level': lv_index,
+  \ '_autoflush': autoflush,
   \ 'set_level': function('s:_Log_set_level'),
   \ 'log': function('s:_Log_log'),
   \ 'flush': function('s:_Log_flush'),
@@ -129,19 +135,29 @@ function! s:_Log_log(level, value) abort dict
   endif
   try
     call self._impl.log(a:level, l:Value)
+    if self._autoflush
+      call self.flush()
+    endif
   catch
-    echohl ErrorMsg
-    echomsg 'Nesk.Log: failed to write log'
-    echomsg 'v:exception:' v:exception
-    echomsg 'v:throwpoint:' v:throwpoint
-    echohl None
+    call s:_echo_exception()
   endtry
 endfunction
 
 function! s:_Log_flush() abort dict
-  if has_key(self._impl, 'flush')
+  try
     call self._impl.flush()
-  endif
+  catch
+    call s:_echo_exception()
+  endtry
+endfunction
+
+" XXX: should re-throw v:exception?
+function! s:_echo_exception() abort
+  echohl ErrorMsg
+  echomsg 'Nesk.Log: failed to write log'
+  echomsg 'v:exception:' v:exception
+  echomsg 'v:throwpoint:' v:throwpoint
+  echohl None
 endfunction
 
 

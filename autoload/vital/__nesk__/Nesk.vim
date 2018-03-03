@@ -23,11 +23,13 @@ function! s:new() abort
     \ 'output': 'File',
     \ 'file_path': logfile,
     \ 'file_redir': 1,
+    \ 'autoflush': 0,
     \})
   elseif 0
     let logger = s:Log.new({
     \ 'output': 'Echomsg',
     \ 'echomsg_hl': ['WarningMsg', 'WarningMsg', 'WarningMsg'],
+    \ 'autoflush': 0,
     \})
   else
     let logger = s:Log.new({'output': 'Nop'})
