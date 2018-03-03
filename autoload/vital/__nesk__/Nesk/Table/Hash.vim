@@ -36,7 +36,7 @@ function! s:_HashTable_get(key) abort dict
 endfunction
 
 function! s:_HashTable_search(prefix, ...) abort dict
-  if a:0 is# 0 || a:1 <# 0
+  if a:0 is# 0 || a:1 <# 0 || a:1 is# 1/0
     let end = max([len(a:prefix) - 1, 0])
     let result = s:_fold(keys(self._dict), {
     \ result,key ->
