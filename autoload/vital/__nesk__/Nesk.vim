@@ -395,7 +395,7 @@ let s:Nesk.filter = function('s:_Nesk_filter')
 function! s:_Nesk_transit(state, in, out) abort dict
   try
     let state = a:state
-    call self._logger.info('transit() begin')
+    call self._logger.info('transit() {')
     while a:in.size() ># 0
       call self._logger.info({-> printf('  in=%s,out=%s,state=%s',
       \                     string(a:in.peek(a:in.size())),
@@ -412,7 +412,7 @@ function! s:_Nesk_transit(state, in, out) abort dict
     \                     string(a:out.to_string()),
     \                     s:_state_string(state),
     \)})
-    call self._logger.info('transit() end')
+    call self._logger.info('}')
     return [state, s:Error.NIL]
   finally
     call self._logger.flush()
@@ -427,20 +427,15 @@ function! s:_state_string(obj, ...) abort
     if s:_is_table(a:obj)
       return '<table "' . a:obj.name . '">'
     endif
-    if level ># 0
-      return '{...}'
-    endif
-    let elems = []
-    for key in keys(a:obj)
-      let elems += [string(key) . ': ' . s:_state_string(a:obj[key], level + 1)]
-    endfor
-    return '{' . join(elems, ', ') . '}'
+    let list = map(items(a:obj), {_,v -> string(v[0]) . ': ' . s:_state_string(v[1], level + 1)})
+    return '{' . join(list, ', ') . '}'
   elseif type(a:obj) is# v:t_func
     let value = string(a:obj)
     let m = matchlist(value, '^function(''\([^'']\+\)'', .*)$')
     return empty(m) ? value : '<func "' . m[1] . '">'
   elseif type(a:obj) is# v:t_list
-    return '[...]'
+    let list = map(copy(a:obj), {_,v -> s:_state_string(v, level + 1)})
+    return '[' . join(list, ', ') . ']'
   else
     return string(a:obj)
   endif
