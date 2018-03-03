@@ -8,11 +8,11 @@ function! s:_vital_loaded(V) abort
   let s:Nesk = a:V.import('Nesk')
   let s:Error = a:V.import('Nesk.Error')
   let s:StringReader = a:V.import('Nesk.StringReader')
-  let s:ERROR_NO_RESULTS = a:V.import('Nesk.Table.Hash').ERROR.NO_RESULTS
+  let s:ERROR_NO_RESULTS = a:V.import('Nesk.Table').ERROR.NO_RESULTS
 endfunction
 
 function! s:_vital_depends() abort
-  return ['Nesk', 'Nesk.Error', 'Nesk.StringReader', 'Nesk.Table.Hash']
+  return ['Nesk', 'Nesk.Error', 'Nesk.StringReader', 'Nesk.Table']
 endfunction
 
 

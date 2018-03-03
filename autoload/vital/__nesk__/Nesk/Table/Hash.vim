@@ -4,18 +4,13 @@ let s:save_cpo = &cpo
 set cpo&vim
 
 
-function! s:_vital_created(M) abort
-  let s:ERROR = {}
-  let a:M.ERROR = s:ERROR
-endfunction
-
 function! s:_vital_loaded(V) abort
+  let s:Table = a:V.import('Nesk.Table')
   let s:Error = a:V.import('Nesk.Error')
-  let s:ERROR.NO_RESULTS = s:Error.new('no results', '')
 endfunction
 
 function! s:_vital_depends() abort
-  return ['Nesk.Error']
+  return ['Nesk.Table', 'Nesk.Error']
 endfunction
 
 
@@ -32,7 +27,7 @@ function! s:_HashTable_get(key) abort dict
   if has_key(self._dict, a:key)
     return [self._dict[a:key], s:Error.NIL]
   endif
-  return [s:Error.NIL, s:ERROR.NO_RESULTS]
+  return [s:Error.NIL, s:Table.ERROR.NO_RESULTS]
 endfunction
 
 function! s:_HashTable_search(prefix, ...) abort dict

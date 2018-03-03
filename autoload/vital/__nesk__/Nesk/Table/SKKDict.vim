@@ -11,16 +11,15 @@ function! s:_vital_created(M) abort
 endfunction
 
 function! s:_vital_loaded(V) abort
+  let s:Table = a:V.import('Nesk.Table')
   let s:Error = a:V.import('Nesk.Error')
-  let s:ERROR_NO_RESULTS = s:Error.new('no results', '')
-  let s:ERROR.NO_RESULTS = s:ERROR_NO_RESULTS
   let s:ERROR_ALREADY_UPTODATE = s:Error.new('dictionary file is already up-to-date', '')
   let s:ERROR.ALREADY_UPTODATE = s:ERROR_ALREADY_UPTODATE
   unlet s:ERROR
 endfunction
 
 function! s:_vital_depends() abort
-  return ['Nesk.Error']
+  return ['Nesk.Table', 'Nesk.Error']
 endfunction
 
 
@@ -43,7 +42,7 @@ endfunction
 
 function! s:_SKKSortedDictTable_get(key) abort dict
   if a:key is# ''
-    return [s:Error.NIL, s:ERROR_NO_RESULTS]
+    return [s:Error.NIL, s:Table.ERROR.NO_RESULTS]
   endif
   let okuri = a:key =~# '^[^[:alpha:]]\+[[:alpha:]]$'
   if okuri
@@ -57,14 +56,14 @@ function! s:_SKKSortedDictTable_get(key) abort dict
   let [min, max] = s:_bin_search(self._lines, a:key, okuri, 100, min, max)
   let idx = s:_match_head(self._lines, a:key . ' ', min, max)
   if idx is# -1
-    return [s:Error.NIL, s:ERROR_NO_RESULTS]
+    return [s:Error.NIL, s:Table.ERROR.NO_RESULTS]
   endif
   return [s:_parse_line(self._lines[idx]), s:Error.NIL]
 endfunction
 
 function! s:_SKKSortedDictTable_search(prefix, ...) abort dict
   if a:prefix is# ''
-    return [s:Error.NIL, s:ERROR_NO_RESULTS]
+    return [s:Error.NIL, s:Table.ERROR.NO_RESULTS]
   endif
   " If prefix has okuri, it must be one or no entry in SKK dictionary
   let okuri = a:prefix =~# '^[^[:alpha:]]\+[[:alpha:]]$'
@@ -114,18 +113,18 @@ endfunction
 
 function! s:_SKKUnsortedDictTable_get(key) abort dict
   if a:key is# ''
-    return [s:Error.NIL, s:ERROR_NO_RESULTS]
+    return [s:Error.NIL, s:Table.ERROR.NO_RESULTS]
   endif
   let idx = s:_match_head(self._lines, a:key . ' ', 0, -1)
   if idx is# -1
-    return [s:Error.NIL, s:ERROR_NO_RESULTS]
+    return [s:Error.NIL, s:Table.ERROR.NO_RESULTS]
   endif
   return [s:_parse_line(self._lines[idx]), s:Error.NIL]
 endfunction
 
 function! s:_SKKUnsortedDictTable_search(prefix, ...) abort dict
   if a:prefix is# ''
-    return [s:Error.NIL, s:ERROR_NO_RESULTS]
+    return [s:Error.NIL, s:Table.ERROR.NO_RESULTS]
   endif
   " If prefix has okuri, it must be one or no entry in SKK dictionary
   let okuri = a:prefix =~# '^[^[:alpha:]]\+[[:alpha:]]$'
