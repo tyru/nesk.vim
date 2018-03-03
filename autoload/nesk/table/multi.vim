@@ -4,15 +4,15 @@ let s:save_cpo = &cpo
 set cpo&vim
 
 
-function! nesk#table#multi#new(name, tables) abort
-  return {
-  \ '_tables': a:tables,
-  \ 'name': a:name,
-  \ 'get': function('s:MultiTable_get'),
-  \ 'search': function('s:MultiTable_search'),
-  \}
+function! s:init(V) abort
+  let s:MultiTable = a:V.import('Nesk.Table.Multi')
 endfunction
+call s:init(vital#nesk#new())
 
+
+function! nesk#table#multi#new(name, tables) abort
+  return s:MultiTable.new(a:name, a:tables)
+endfunction
 
 
 let &cpo = s:save_cpo
