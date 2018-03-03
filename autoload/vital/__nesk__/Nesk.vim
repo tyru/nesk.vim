@@ -349,23 +349,20 @@ function! s:_Nesk_filter(str) abort dict
   endif
   let state = states[-1]
   let in = s:StringReader.new(a:str)
-  let out = s:new_error_writer(s:StringWriter.new(), s:BLACKHOLE_STATE)
+  let out = s:StringWriter.new()
   try
-    let state = self.transit(state, in, out)
-    if empty(out.errors)
+    let [state, err] = self.transit(state, in, out)
+    if err is# s:Error.NIL
       let states[-1] = state
       return [out.to_string(), s:Error.NIL]
     endif
-    let errors = out.errors
   catch
     let ex = type(v:exception) is# v:t_string ? v:exception : string(v:exception)
-    let errors = [s:Error.new(ex, v:throwpoint)]
+    let err = s:Error.new(ex, v:throwpoint)
   endtry
   " Error handling
-  let merr = s:Error.new_multi(errors)
-  let [str, err] = self.disable()
-  let merr = s:Error.append(merr, err)
-  return [str, merr]
+  let [str, err2] = self.disable()
+  return [str, s:Error.append(err, err2)]
 endfunction
 let s:Nesk.filter = function('s:_Nesk_filter')
 
@@ -378,7 +375,10 @@ function! s:_Nesk_transit_log(state, in, out) abort
     \                     s:_state_string(state),
     \                     string(a:in.peek(a:in.size())),
     \                     string(a:out.to_string())))
-    let state = state.next(a:in, a:out)
+    let [state, err] = state.next(a:in, a:out)
+    if err isnot# s:Error.NIL
+      return [state, err]
+    endif
   endwhile
   call self.log(printf('  state=%s,in=%s,out=%s',
   \                     s:_state_string(state),
@@ -386,15 +386,18 @@ function! s:_Nesk_transit_log(state, in, out) abort
   \                     string(a:out.to_string())))
   call self.log(printf('transit(): output=%s',
   \                     string(a:out.to_string())))
-  return state
+  return [state, s:Error.NIL]
 endfunction
 
 function! s:_Nesk_transit_nolog(state, in, out) abort
   let state = a:state
   while a:in.size() ># 0
-    let state = state.next(a:in, a:out)
+    let [state, err] = state.next(a:in, a:out)
+    if err isnot# s:Error.NIL
+      return [state, err]
+    endif
   endwhile
-  return state
+  return [state, s:Error.NIL]
 endfunction
 
 " * Transform table object into '<table "{name}">'
@@ -428,32 +431,6 @@ function! s:_Nesk_log(msg) abort dict
 endfunction
 
 
-" This is writer used by State objects in s:Nesk.filter()
-function! s:new_error_writer(writer, error_value) abort
-  return {
-  \ '_writer': a:writer,
-  \ '_error_value': a:error_value,
-  \ 'errors': [],
-  \ 'write': function('s:_ErrorWriter_write'),
-  \ 'to_string': function('s:_ErrorWriter_to_string'),
-  \ 'error': function('s:_ErrorWriter_error'),
-  \}
-endfunction
-
-function! s:_ErrorWriter_write(str) abort dict
-  return self._writer.write(a:str)
-endfunction
-
-function! s:_ErrorWriter_to_string() abort dict
-  return self._writer.to_string()
-endfunction
-
-function! s:_ErrorWriter_error(err) abort dict
-  let self._errors += [a:err]
-  return self._error_value
-endfunction
-
-
 function! s:new_mode_change_state(mode_name) abort
   return {
   \ '_mode_name': a:mode_name,
@@ -469,14 +446,14 @@ function! s:_ModeChangeState_next(in, out) abort dict
   let err = nesk.set_active_mode_name(self._mode_name)
   if err isnot# s:Error.NIL
     let err = s:Error.wrap(err, 'Cannot set active mode to ' . self._mode_name)
-    return a:out.error(err)
+    return [s:Error.NIL, err]
   endif
   let [mode, err] = nesk.get_active_mode()
   if err isnot# s:Error.NIL
     let err = s:Error.wrap(err, 'Cannot get active mode')
-    return a:out.error(err)
+    return [s:Error.NIL, err]
   endif
-  return mode.initial_state
+  return [mode.initial_state, s:Error.NIL]
 endfunction
 
 function! s:new_disable_state() abort
@@ -491,10 +468,11 @@ function! s:_DisableState_next(in, out) abort dict
   let nesk = nesk#get_instance()
   let [str, err] = nesk.disable()
   if err isnot# s:Error.NIL
-    return a:out.error(s:Error.wrap(err, 'Cannot disable skk'))
+    let err = s:Error.wrap(err, 'Cannot disable skk')
+    return [s:Error.NIL, err]
   endif
   call a:out.write(str)
-  return s:BLACKHOLE_STATE
+  return [s:BLACKHOLE_STATE, s:Error.NIL]
 endfunction
 
 let s:BLACKHOLE_STATE = {}
@@ -502,7 +480,7 @@ let s:BLACKHOLE_STATE = {}
 " Read all string from a:in to stop the nesk.filter()'s loop
 function! s:_EscapeState_next(in, out) abort dict
   call a:in.read(a:in.size())
-  return self
+  return [self, s:Error.NIL]
 endfunction
 let s:BLACKHOLE_STATE.next = function('s:_EscapeState_next')
 
