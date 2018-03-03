@@ -41,11 +41,11 @@ function! s:wrapf(fmt, err) abort
 endfunction
 
 
-function! s:new_multi(errs) abort
-  if type(a:errs) isnot# v:t_list
+function! s:new_multi(...) abort
+  if a:0 is# 0 || type(a:1) isnot# v:t_list
     return s:NIL
   endif
-  let errs = s:flatten(a:errs)
+  let errs = s:flatten(a:1)
   if empty(errs)
     return s:NIL
   elseif len(errs) is# 1
