@@ -39,13 +39,13 @@ let s:SKKDICT_TABLES = {
 \}
 
 function! s:new_kana_mode() abort
-  let state = {'next': function('s:KanaState_next')}
+  let state = {'next': function('s:_KanaState_next')}
   let mode = {'name': 'skk/kana', 'initial_state': state}
   return mode
 endfunction
 
 " Set up kana mode: define tables, and change state to TableNormalState.
-function! s:KanaState_next(in, out) abort
+function! s:_KanaState_next(in, out) abort
   let nesk = nesk#get_instance()
 
   if !s:loaded_kana_and_skkdict_table
@@ -91,12 +91,12 @@ endfunction
 let s:loaded_kata_table = 0
 
 function! s:new_kata_mode() abort
-  let state = {'next': function('s:KataState_next')}
+  let state = {'next': function('s:_KataState_next')}
   let mode = {'name': 'skk/kata', 'initial_state': state}
   return mode
 endfunction
 
-function! s:KataState_next(in, out) abort
+function! s:_KataState_next(in, out) abort
   if !s:loaded_kata_table
     call nesk#define_table(nesk#table#kata#new())
     let s:loaded_kata_table = 1
@@ -118,12 +118,12 @@ endfunction
 let s:loaded_hankata_table = 0
 
 function! s:new_hankata_mode() abort
-  let state = {'next': function('s:HankataState_next')}
+  let state = {'next': function('s:_HankataState_next')}
   let mode = {'name': 'skk/hankata', 'initial_state': state}
   return mode
 endfunction
 
-function! s:HankataState_next(in, out) abort
+function! s:_HankataState_next(in, out) abort
   if !s:loaded_hankata_table
     call nesk#define_table(nesk#table#hankata#new())
     let s:loaded_hankata_table = 1
@@ -146,35 +146,35 @@ function! s:new_table_normal_state(table) abort
   return {
   \ '_table': a:table,
   \ '_buf': '',
-  \ 'commit': function('s:TableNormalState_commit'),
-  \ 'next': function('s:TableNormalState_next'),
+  \ 'commit': function('s:_TableNormalState_commit'),
+  \ 'next': function('s:_TableNormalState_next'),
   \}
 endfunction
 
-function! s:TableNormalState_commit() abort dict
+function! s:_TableNormalState_commit() abort dict
   return self._buf
 endfunction
 
 " a:in.unread() continues nesk.filter() loop
 " after leaving this function.
 " (the loop exits when a:in becomes empty)
-function! s:TableNormalState_next(in, out) abort dict
+function! s:_TableNormalState_next(in, out) abort dict
   let c = a:in.read_char()
   if c is# "\<C-j>"
     if self._buf is# ''
       call a:in.unread()
       return [s:Nesk.new_disable_state(), s:Error.NIL]
     else
-      return s:do_commit(self, a:out)
+      return s:_do_commit(self, a:out)
     endif
   elseif c is# "\<CR>"
-    return s:do_enter(self, a:out)
+    return s:_do_enter(self, a:out)
   elseif c is# "\<C-h>"
-    return s:do_backspace(self, a:out)
+    return s:_do_backspace(self, a:out)
   elseif c is# "\x80"    " backspace is \x80 k b
     call a:in.unread()
     if a:in.read(3) is# "\<BS>"
-      return s:do_backspace(self, a:out)
+      return s:_do_backspace(self, a:out)
     endif
     return [self, s:Error.NIL]
   elseif c is# 'L'
@@ -216,9 +216,9 @@ function! s:TableNormalState_next(in, out) abort dict
     let nesk = nesk#get_instance()
     return nesk.transit(self, in, a:out)
   elseif c is# "\<Esc>"
-    return s:do_escape(self, a:out)
+    return s:_do_escape(self, a:out)
   elseif c is# "\<C-g>"
-    return s:do_cancel(self, a:out)
+    return s:_do_cancel(self, a:out)
   else
     let [cands, err] = self._table.search(self._buf . c)
     if err isnot# s:Error.NIL
@@ -250,7 +250,7 @@ function! s:TableNormalState_next(in, out) abort dict
   endif
 endfunction
 
-function! s:do_escape(state, out) abort
+function! s:_do_escape(state, out) abort
   if a:state._buf isnot# ''
     let bs = repeat("\<C-h>", strchars(a:state._buf))
     call a:out.write(bs)
@@ -264,7 +264,7 @@ function! s:do_escape(state, out) abort
   return [a:state, s:Error.NIL]
 endfunction
 
-function! s:do_cancel(state, out) abort
+function! s:_do_cancel(state, out) abort
   if a:state._buf isnot# ''
     let bs = repeat("\<C-h>", strchars(a:state._buf))
     call a:out.write(bs)
@@ -273,7 +273,7 @@ function! s:do_cancel(state, out) abort
   return [a:state, s:Error.NIL]
 endfunction
 
-function! s:do_backspace(state, out) abort
+function! s:_do_backspace(state, out) abort
   let str = "\<C-h>"
   if a:state._buf isnot# ''
     let a:state._buf = strcharpart(a:state._buf, 0, strchars(a:state._buf)-1)
@@ -282,7 +282,7 @@ function! s:do_backspace(state, out) abort
   return [a:state, s:Error.NIL]
 endfunction
 
-function! s:do_enter(state, out) abort
+function! s:_do_enter(state, out) abort
   if a:state._buf isnot# ''
     let bs = repeat("\<C-h>", strchars(a:state._buf))
     call a:out.write(bs)
@@ -296,7 +296,7 @@ function! s:do_enter(state, out) abort
   return [a:state, s:Error.NIL]
 endfunction
 
-function! s:do_commit(state, out) abort
+function! s:_do_commit(state, out) abort
   call a:out.write(a:state._buf)
   let a:state._buf = ''
   return [a:state, s:Error.NIL]
@@ -307,12 +307,12 @@ endfunction
 " 'ascii' mode {{{
 
 function! s:new_ascii_mode() abort
-  let state = {'next': function('s:AsciiState_next')}
+  let state = {'next': function('s:_AsciiState_next')}
   let mode = {'name': 'skk/ascii', 'initial_state': state}
   return mode
 endfunction
 
-function! s:AsciiState_next(in, out) abort dict
+function! s:_AsciiState_next(in, out) abort dict
   let c = a:in.read_char()
   if c is# "\<C-j>"
     call a:in.unread()
@@ -330,12 +330,12 @@ endfunction
 let s:loaded_zenei_table = 0
 
 function! s:new_zenei_mode() abort
-  let state = {'next': function('s:ZeneiTable_next0')}
+  let state = {'next': function('s:_ZeneiTable_next0')}
   let mode = {'name': 'skk/zenei', 'initial_state': state}
   return mode
 endfunction
 
-function! s:ZeneiTable_next0(in, out) abort dict
+function! s:_ZeneiTable_next0(in, out) abort dict
   if !s:loaded_zenei_table
     call nesk#define_table(nesk#table#zenei#new())
     let s:loaded_zenei_table = 1
@@ -349,12 +349,12 @@ function! s:ZeneiTable_next0(in, out) abort dict
 
   let next_state = {
   \ '_table': table,
-  \ 'next': function('s:ZeneiTable_next1'),
+  \ 'next': function('s:_ZeneiTable_next1'),
   \}
   return next_state.next(a:in, a:out)
 endfunction
 
-function! s:ZeneiTable_next1(in, out) abort dict
+function! s:_ZeneiTable_next1(in, out) abort dict
   let c = a:in.read_char()
   if c is# "\<C-j>"
     return [s:Nesk.new_mode_change_state('skk/kana'), s:Error.NIL]
