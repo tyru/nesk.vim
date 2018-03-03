@@ -8,14 +8,30 @@ function! s:_vital_loaded(V) abort
   let s:Error = a:V.import('Nesk.Error')
   let s:StringReader = a:V.import('Nesk.StringReader')
   let s:StringWriter = a:V.import('Nesk.StringWriter')
+  let s:Log = a:V.import('Nesk.Log')
 endfunction
 
 function! s:_vital_depends() abort
-  return ['Nesk.Error', 'Nesk.StringReader', 'Nesk.StringWriter']
+  return ['Nesk.Error', 'Nesk.StringReader', 'Nesk.StringWriter', 'Nesk.Log']
 endfunction
 
 
 function! s:new() abort
+  let logfile = expand('~/nesk.log')
+  if 1 && isdirectory(fnamemodify(logfile, ':h'))
+    let logger = s:Log.new({
+    \ 'output': 'File',
+    \ 'file_path': logfile,
+    \ 'file_redir': 1,
+    \})
+  elseif 1
+    let logger = s:Log.new({
+    \ 'output': 'Echomsg',
+    \ 'echomsg_hl': ['WarningMsg', 'WarningMsg', 'WarningMsg'],
+    \})
+  else
+    let logger = s:Log.new({'output': 'Nop'})
+  endif
   let nesk = extend(deepcopy(s:Nesk), {
   \ '_loaded_rtp': 0,
   \ '_states': {},
@@ -24,17 +40,9 @@ function! s:new() abort
   \ '_active_mode_name': '',
   \ '_initial_mode': 'skk/kana',
   \ '_keep_state': 1,
-  \ '_enabled_log': 1,
-  \ '_log_file': expand('~/nesk.log'),
+  \ '_logger': logger,
   \})
-  if nesk._enabled_log && isdirectory(fnamemodify(nesk._log_file, ':h'))
-    let nesk.transit_may_log = function('s:_Nesk_transit_log')
-    let nesk.log = function('s:_Nesk_log')
-  else
-    let nesk.transit_may_log = function('s:_Nesk_transit_nolog')
-    let nesk.log = function('s:_nop')
-  endif
-  let nesk.transit = function('s:_Nesk_transit_nolog')
+  let nesk.transit = function('s:_Nesk_transit')
   return nesk
 endfunction
 
@@ -356,7 +364,7 @@ function! s:_Nesk_rewrite(str) abort dict
   let in = s:StringReader.new(a:str)
   let out = s:StringWriter.new()
   try
-    let [state, err] = self.transit_may_log(state, in, out)
+    let [state, err] = self.transit(state, in, out)
     if err is# s:Error.NIL
       let states[-1] = state
       return [out.to_string(), s:Error.NIL]
@@ -382,38 +390,31 @@ function! s:_Nesk_filter(str) abort dict
 endfunction
 let s:Nesk.filter = function('s:_Nesk_filter')
 
-function! s:_Nesk_transit_log(state, in, out) abort dict
-  let state = a:state
-  call self.log('transit() begin')
-  while a:in.size() ># 0
-    call self.log(printf('  in=%s,out=%s,state=%s',
+function! s:_Nesk_transit(state, in, out) abort dict
+  try
+    let state = a:state
+    call self._logger.info('transit() begin')
+    while a:in.size() ># 0
+      call self._logger.info({-> printf('  in=%s,out=%s,state=%s',
+      \                     string(a:in.peek(a:in.size())),
+      \                     string(a:out.to_string()),
+      \                     s:_state_string(state),
+      \)})
+      let [state, err] = state.next(a:in, a:out)
+      if err isnot# s:Error.NIL
+        return [state, err]
+      endif
+    endwhile
+    call self._logger.info({-> printf('  in=%s,out=%s,state=%s',
     \                     string(a:in.peek(a:in.size())),
     \                     string(a:out.to_string()),
     \                     s:_state_string(state),
-    \))
-    let [state, err] = state.next(a:in, a:out)
-    if err isnot# s:Error.NIL
-      return [state, err]
-    endif
-  endwhile
-  call self.log(printf('  in=%s,out=%s,state=%s',
-  \                     string(a:in.peek(a:in.size())),
-  \                     string(a:out.to_string()),
-  \                     s:_state_string(state),
-  \))
-  call self.log('transit() end')
-  return [state, s:Error.NIL]
-endfunction
-
-function! s:_Nesk_transit_nolog(state, in, out) abort dict
-  let state = a:state
-  while a:in.size() ># 0
-    let [state, err] = state.next(a:in, a:out)
-    if err isnot# s:Error.NIL
-      return [state, err]
-    endif
-  endwhile
-  return [state, s:Error.NIL]
+    \)})
+    call self._logger.info('transit() end')
+    return [state, s:Error.NIL]
+  finally
+    call self._logger.flush()
+  endtry
 endfunction
 
 " * Transform table object into '<table "{name}">'
@@ -448,10 +449,6 @@ function! s:_is_table(table) abort
   \      type(get(a:table, 'name', 0)) is# v:t_string &&
   \      type(get(a:table, 'get', 0)) is# v:t_func &&
   \      type(get(a:table, 'search', 0)) is# v:t_func
-endfunction
-
-function! s:_Nesk_log(msg) abort dict
-  call writefile([a:msg], self._log_file, 'a')
 endfunction
 
 
@@ -511,10 +508,6 @@ function! s:_BlackHoleState_next(in, out) abort dict
   return [self, s:Error.NIL]
 endfunction
 let s:BLACK_HOLE_STATE.next = function('s:_BlackHoleState_next')
-
-
-function! s:_nop(...) abort
-endfunction
 
 
 let &cpo = s:save_cpo
