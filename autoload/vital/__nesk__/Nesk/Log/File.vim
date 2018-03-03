@@ -5,7 +5,7 @@ set cpo&vim
 
 
 let s:DEFAULT_FORMATTER = {
-\ options -> {level,msg -> printf('[%s] %s', get(options.levels[0], level, '?'), msg)}
+\ options -> {level,msg -> printf('[%s] %s %s', get(options.levels[0], level, '?'), strftime('%Y-%m-%d %H:%M'), msg)}
 \}
 
 function! s:new(options) abort
