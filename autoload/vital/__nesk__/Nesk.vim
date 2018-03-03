@@ -8,11 +8,10 @@ function! s:_vital_loaded(V) abort
   let s:Error = a:V.import('Nesk.Error')
   let s:StringReader = a:V.import('Nesk.StringReader')
   let s:StringWriter = a:V.import('Nesk.StringWriter')
-  let s:VimBufferWriter = a:V.import('Nesk.VimBufferWriter')
 endfunction
 
 function! s:_vital_depends() abort
-  return ['Nesk.Error', 'Nesk.StringReader', 'Nesk.StringWriter', 'Nesk.VimBufferWriter']
+  return ['Nesk.Error', 'Nesk.StringReader', 'Nesk.StringWriter']
 endfunction
 
 
@@ -372,14 +371,14 @@ function! s:_Nesk_rewrite(str) abort dict
 endfunction
 let s:Nesk.rewrite = function('s:_Nesk_rewrite')
 
+let s:REMOVE_BS_PATTERN = '.\%(' . "\<C-h>" . '\|' . "\<BS>" . '\)'
 function! s:_Nesk_filter(str) abort dict
   let [rawstr, err] = self.rewrite(a:str)
   if err isnot# s:Error.NIL
     return ['', err]
   endif
-  let buf = s:VimBufferWriter.new()
-  call buf.write(rawstr)
-  return [buf.to_string(), s:Error.NIL]
+  let str = substitute(rawstr, s:REMOVE_BS_PATTERN, '', 'g')
+  return [str, s:Error.NIL]
 endfunction
 let s:Nesk.filter = function('s:_Nesk_filter')
 
