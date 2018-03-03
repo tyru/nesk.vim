@@ -108,13 +108,16 @@ function! s:_create_level_methods(logger, levels) abort
 endfunction
 
 function! s:_Log_set_level(level) abort dict
-  " TODO
+  if type(a:level) isnot# v:t_number
+    throw 'Nesk.Log: set_level(): received non-Number value'
+  endif
+  let self._current_level = a:level
 endfunction
 
 " This function does not :throw a value which is neither Funcref nor String,
 " because logger.log() in error case should be tolerant!
 function! s:_Log_log(level, value) abort dict
-  if self._current_level ># a:level
+  if type(a:level) isnot# v:t_number || self._current_level ># a:level
     return
   endif
   let l:Value = a:value
