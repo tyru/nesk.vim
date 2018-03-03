@@ -32,14 +32,14 @@ function! s:new(options) abort
 endfunction
 
 function! s:_FileLogger_log(level, msg) abort dict
-  let self._buf += [[a:level, a:msg]]
+  let self._buf += [self._fmt(a:level, a:msg)]
 endfunction
 
 function! s:_FileLogger_flush_redir() abort dict
   try
     execute 'redir >>' self._path
-    for [level, msg] in self._buf
-      silent echo self._fmt(level, msg)
+    for msg in self._buf
+      silent echo msg
     endfor
     let self._buf = []
   finally
@@ -48,9 +48,7 @@ function! s:_FileLogger_flush_redir() abort dict
 endfunction
 
 function! s:_FileLogger_flush_writefile() abort dict
-  for [level, msg] in self._buf
-    call writefile([self._fmt(level, msg)], self._path, 'a')
-  endfor
+  call writefile(self._buf, self._path, 'a')
   let self._buf = []
 endfunction
 
