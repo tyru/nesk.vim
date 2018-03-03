@@ -5,7 +5,7 @@ set cpo&vim
 
 
 let s:DEFAULT_FORMATTER = {
-\ options -> {lv,msg -> printf('[%s] %s', get(options.levels[0], lv, '?'), msg)}
+\ options -> {level,msg -> printf('[%s] %s', get(options.levels[0], level, '?'), msg)}
 \}
 
 function! s:new(options) abort
