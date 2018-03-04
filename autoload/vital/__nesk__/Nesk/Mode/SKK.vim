@@ -17,69 +17,6 @@ function! s:_vital_depends() abort
 endfunction
 
 
-" Table registration {{{
-
-let s:loaded_table = {}
-let s:define_table_func = {}
-
-function! s:_define_table_lazy(table_name)
-  if !has_key(s:loaded_table, a:table_name)
-    if !has_key(s:define_table_func, a:table_name)
-      return s:Error.new('no table func for ' . a:table_name)
-    endif
-    let err = s:define_table_func[a:table_name]()
-    if err isnot# s:Error.NIL
-      return err
-    endif
-    let s:loaded_table[a:table_name] = 1
-  endif
-  return s:Error.NIL
-endfunction
-
-function! s:define_table_func.kana() abort
-  let nesk = nesk#get_instance()
-  " Define kana table
-  let table = nesk#table#kana#new()
-  let err = nesk.define_table(table)
-  if err isnot# s:Error.NIL
-    let err = s:Error.wrap(err, 'kana mode failed to register "' . table.name . '" table')
-    return err
-  endif
-  " Define skkdict table
-  let tables = []
-  for t in s:SKKDICT_TABLES.tables
-    let table = nesk#table#skkdict#new(t.name, t.path, t.sorted, t.encoding)
-    let err = nesk.define_table(table)
-    if err isnot# s:Error.NIL
-      let err = s:Error.wrap(err, 'kana mode failed to register "' . table.name . '" table')
-      return err
-    endif
-    let tables += [table]
-  endfor
-  let table = nesk#table#skkdict#new_multi(s:SKKDICT_TABLES.name, tables)
-  let err = nesk.define_table(table)
-  return s:Error.wrap(err, 'kana mode failed to register "' . table.name . '" table')
-endfunction
-
-function! s:define_table_func.kata() abort
-  return nesk#get_instance().define_table(nesk#table#kata#new())
-endfunction
-
-function! s:define_table_func.hankata() abort
-  return nesk#get_instance().define_table(nesk#table#hankata#new())
-endfunction
-
-function! s:define_table_func.zenei() abort
-  return nesk#get_instance().define_table(nesk#table#zenei#new())
-endfunction
-
-function! s:_get_table_lazy(table_name) abort
-  call s:_define_table_lazy(a:table_name)
-  return nesk#get_instance().get_table(a:table_name)
-endfunction
-
-" }}}
-
 " 'kana' mode {{{
 
 " TODO: Global variable
@@ -157,6 +94,127 @@ function! s:_HankataState_next(in, out) abort
   endif
 
   return s:new_table_normal_state(table).next(a:in, a:out)
+endfunction
+
+" }}}
+
+" 'ascii' mode {{{
+
+function! s:new_ascii_mode() abort
+  let state = {'next': function('s:_AsciiState_next')}
+  let mode = {'name': 'skk/ascii', 'initial_state': state}
+  return mode
+endfunction
+
+function! s:_AsciiState_next(in, out) abort dict
+  let c = a:in.read_char()
+  if c is# "\<C-j>"
+    " Change mode (must leave one character at least for ModeChangeState)
+    call a:in.unread()
+    return [s:Nesk.new_mode_change_state('skk/kana'), s:Error.NIL]
+  else
+    call a:out.write(c)
+  endif
+  return [self, s:Error.NIL]
+endfunction
+
+" }}}
+
+" 'zenei' mode {{{
+
+function! s:new_zenei_mode() abort
+  let state = {'next': function('s:_ZeneiTable_next0')}
+  let mode = {'name': 'skk/zenei', 'initial_state': state}
+  return mode
+endfunction
+
+function! s:_ZeneiTable_next0(in, out) abort dict
+  let [table, err] = s:_get_table_lazy('zenei')
+  if err isnot# s:Error.NIL
+    return [s:Error.NIL, s:Error.wrap(err, 'Cannot load zenei table')]
+  endif
+  let next_state = {
+  \ '_table': table,
+  \ 'next': function('s:_ZeneiTable_next1'),
+  \}
+  return next_state.next(a:in, a:out)
+endfunction
+
+function! s:_ZeneiTable_next1(in, out) abort dict
+  let c = a:in.read_char()
+  if c is# "\<C-j>"
+    " Change mode (must leave one character at least for ModeChangeState)
+    call a:in.unread()
+    return [s:Nesk.new_mode_change_state('skk/kana'), s:Error.NIL]
+  else
+    let [str, err] = self._table.get(c)
+    call a:out.write(err is# s:ERROR_NO_RESULTS ? c : str)
+  endif
+  return [self, s:Error.NIL]
+endfunction
+
+" }}}
+
+
+" Table registration {{{
+
+let s:loaded_table = {}
+let s:define_table_func = {}
+
+function! s:_define_table_lazy(table_name)
+  if !has_key(s:loaded_table, a:table_name)
+    if !has_key(s:define_table_func, a:table_name)
+      return s:Error.new('no table func for ' . a:table_name)
+    endif
+    let err = s:define_table_func[a:table_name]()
+    if err isnot# s:Error.NIL
+      return err
+    endif
+    let s:loaded_table[a:table_name] = 1
+  endif
+  return s:Error.NIL
+endfunction
+
+function! s:define_table_func.kana() abort
+  let nesk = nesk#get_instance()
+  " Define kana table
+  let table = nesk#table#kana#new()
+  let err = nesk.define_table(table)
+  if err isnot# s:Error.NIL
+    let err = s:Error.wrap(err, 'kana mode failed to register "' . table.name . '" table')
+    return err
+  endif
+  " Define skkdict table
+  let tables = []
+  for t in s:SKKDICT_TABLES.tables
+    let table = nesk#table#skkdict#new(t.name, t.path, t.sorted, t.encoding)
+    let err = nesk.define_table(table)
+    if err isnot# s:Error.NIL
+      let err = s:Error.wrap(err, 'kana mode failed to register "' . table.name . '" table')
+      return err
+    endif
+    let tables += [table]
+  endfor
+  let table = nesk#table#skkdict#new_multi(s:SKKDICT_TABLES.name, tables)
+  let err = nesk.define_table(table)
+  return s:Error.wrap(err, 'kana mode failed to register "' . table.name . '" table')
+endfunction
+
+function! s:define_table_func.kata() abort
+  return nesk#get_instance().define_table(nesk#table#kata#new())
+endfunction
+
+function! s:define_table_func.hankata() abort
+  return nesk#get_instance().define_table(nesk#table#hankata#new())
+endfunction
+
+function! s:define_table_func.zenei() abort
+  return nesk#get_instance().define_table(nesk#table#zenei#new())
+endfunction
+
+function! s:_get_table_lazy(table_name) abort
+  call s:_define_table_lazy(a:table_name)
+  return nesk#get_instance().get_table(a:table_name)
 endfunction
 
 " }}}
@@ -696,63 +754,6 @@ endfunction
 function! s:_RegisterDictState_next(in, out) abort dict
   " TODO
   throw 'not implemented yet'
-endfunction
-
-" }}}
-
-" 'ascii' mode {{{
-
-function! s:new_ascii_mode() abort
-  let state = {'next': function('s:_AsciiState_next')}
-  let mode = {'name': 'skk/ascii', 'initial_state': state}
-  return mode
-endfunction
-
-function! s:_AsciiState_next(in, out) abort dict
-  let c = a:in.read_char()
-  if c is# "\<C-j>"
-    " Change mode (must leave one character at least for ModeChangeState)
-    call a:in.unread()
-    return [s:Nesk.new_mode_change_state('skk/kana'), s:Error.NIL]
-  else
-    call a:out.write(c)
-  endif
-  return [self, s:Error.NIL]
-endfunction
-
-" }}}
-
-" 'zenei' mode {{{
-
-function! s:new_zenei_mode() abort
-  let state = {'next': function('s:_ZeneiTable_next0')}
-  let mode = {'name': 'skk/zenei', 'initial_state': state}
-  return mode
-endfunction
-
-function! s:_ZeneiTable_next0(in, out) abort dict
-  let [table, err] = s:_get_table_lazy('zenei')
-  if err isnot# s:Error.NIL
-    return [s:Error.NIL, s:Error.wrap(err, 'Cannot load zenei table')]
-  endif
-  let next_state = {
-  \ '_table': table,
-  \ 'next': function('s:_ZeneiTable_next1'),
-  \}
-  return next_state.next(a:in, a:out)
-endfunction
-
-function! s:_ZeneiTable_next1(in, out) abort dict
-  let c = a:in.read_char()
-  if c is# "\<C-j>"
-    " Change mode (must leave one character at least for ModeChangeState)
-    call a:in.unread()
-    return [s:Nesk.new_mode_change_state('skk/kana'), s:Error.NIL]
-  else
-    let [str, err] = self._table.get(c)
-    call a:out.write(err is# s:ERROR_NO_RESULTS ? c : str)
-  endif
-  return [self, s:Error.NIL]
 endfunction
 
 " }}}
