@@ -418,10 +418,20 @@ function! s:_TableBufferingState_next1(in, out) abort dict
     else
       " NOTE: Vim only behavior: if a:state._converted_key is not empty,
       " insert the string to buffer (e.g. "Kanjil" -> "kanji")
+
+      " Remove inserted string
       let bs = repeat("\<C-h>", strchars(self._marker . join(self._buf, '') . self._key))
-      call a:out.write(bs . join(self._converted_key, ''))
-      " Back to TableNormalState
-      let state = s:new_table_normal_state(self._mode_table)
+      call a:out.write(bs)
+      " Change to ascii mode (ModeChangeState reads one character)
+      let state = s:Nesk.new_mode_change_state(self._ascii_mode_name)
+      let dummy = '@'
+      let in = s:StringReader.new(dummy . join(self._converted_key, '') . "\<C-j>")
+      while in.size() ># 0
+        let [state, err] = state.next(in, a:out)
+        if err isnot# s:Error.NIL
+          return [state, err]
+        endif
+      endwhile
       return [state, s:Error.NIL]
     endif
   elseif c is# 'L'
