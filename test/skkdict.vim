@@ -9,8 +9,6 @@ function! s:run() abort
   let v:errors = []
 
   let userdict = nesk#table#skkdict#new('skkdict/user-dict', expand('~/.skkdict/user-dict'), 0, 'utf-8')
-  let err = userdict.reload()
-  call assert_equal(s:Error.NIL, err)
 
   let [entry, err] = userdict.get('おもi')
   call assert_equal(s:Error.NIL, err)
@@ -25,8 +23,6 @@ function! s:run() abort
   call assert_equal([['びみょうn', ['微妙']], ['びみ', ['美味']], ['びみょう', ['微妙'], ['美妙']]], entry)
 
   let sysdict = nesk#table#skkdict#new('skkdict/system-dict', expand('~/.skkdict/system-dict'), 1, 'euc-jp')
-  let err = sysdict.reload()
-  call assert_equal(s:Error.NIL, err)
 
   let [entry, err] = sysdict.get('わんきゅう')
   call assert_equal(s:Error.NIL, err)

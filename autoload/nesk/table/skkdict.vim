@@ -14,8 +14,8 @@ function! nesk#table#skkdict#new(name, path, sorted, encoding) abort
   return s:SKKDict.new(a:name, a:path, a:sorted, a:encoding)
 endfunction
 
-function! nesk#table#skkdict#new_multi(name, tables) abort
-  return extend(nesk#table#multi#new(a:name, a:tables), s:SKKDict.Multi)
+function! nesk#table#skkdict#new_multi(name, tables, reg_table) abort
+  return s:SKKDict.new_multi(a:name, a:tables, a:reg_table)
 endfunction
 
 

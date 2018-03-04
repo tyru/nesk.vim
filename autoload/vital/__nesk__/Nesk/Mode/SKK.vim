@@ -8,6 +8,8 @@ function! s:_vital_loaded(V) abort
   let s:Nesk = a:V.import('Nesk')
   let s:Error = a:V.import('Nesk.Error')
   let s:StringReader = a:V.import('Nesk.StringReader')
+  let s:VimBufferWriter = a:V.import('Nesk.VimBufferWriter')
+  let s:MultiWriter = a:V.import('Nesk.MultiWriter')
   let s:SKKDict = a:V.import('Nesk.Table.SKKDict')
   let s:ERROR_NO_RESULTS = a:V.import('Nesk.Table').ERROR.NO_RESULTS
 endfunction
@@ -40,6 +42,7 @@ let s:SKKDICT_TABLES = {
 let s:BUFFERING_MARKER = "▽"
 let s:OKURI_MARKER = "▼"
 let s:CONVERT_MARKER = "▼"
+let s:REGDICT_HEAD_MARKER = "▼"
 let s:REGDICT_LEFT_MARKER = '【'
 let s:REGDICT_RIGHT_MARKER = '】'
 
@@ -190,6 +193,7 @@ function! s:define_table_func.kana() abort
   endif
   " Define skkdict table
   let tables = []
+  let reg_table = s:Error.NIL
   for t in s:SKKDICT_TABLES.tables
     let table = nesk#table#skkdict#new(t.name, t.path, t.sorted, t.encoding)
     let err = nesk.define_table(table)
@@ -197,9 +201,13 @@ function! s:define_table_func.kana() abort
       let err = s:Error.wrap(err, 'kana mode failed to register "' . table.name . '" table')
       return err
     endif
+    if t.sorted && empty(reg_table)
+      let reg_table = table
+    endif
     let tables += [table]
   endfor
-  let table = nesk#table#skkdict#new_multi(s:SKKDICT_TABLES.name, tables)
+  " If no sorted dictionaries found, this table is read-only
+  let table = nesk#table#skkdict#new_multi(s:SKKDICT_TABLES.name, tables, reg_table)
   let err = nesk.define_table(table)
   return s:Error.wrap(err, 'kana mode failed to register "' . table.name . '" table')
 endfunction
@@ -519,9 +527,11 @@ function! s:_TableBufferingState_next1(in, out) abort dict
       return [s:Error.NIL, err]
     endif
     let new_key = join(self._buf, '')
-    let bs = repeat("\<C-h>", strchars(self._marker . join(self._buf, '') . self._key))
+    let inserted = self._marker . join(self._buf, '')
+    let bs = repeat("\<C-h>", strchars(inserted . self._key))
     call a:out.write(bs)
-    let state = s:new_table_convert_state(dict_table, self, new_key, s:CONVERT_MARKER, self._mode_table)
+    let self._key = ''
+    let state = s:new_table_convert_state(dict_table, self, inserted, new_key, s:CONVERT_MARKER, self._mode_table)
     call a:in.unread()
     return state.next(a:in, a:out)
   else
@@ -617,10 +627,11 @@ function! s:_TableBufferingState_commit() abort dict
 endfunction
 
 
-function! s:new_table_convert_state(dict_table, prev_state, key, marker, mode_table) abort
+function! s:new_table_convert_state(dict_table, prev_state, prev_inserted, key, marker, mode_table) abort
   return {
   \ '_dict_table': a:dict_table,
   \ '_prev_state': a:prev_state,
+  \ '_prev_inserted': a:prev_inserted,
   \ '_key': a:key,
   \ '_marker': a:marker,
   \ '_mode_table': a:mode_table,
@@ -629,11 +640,7 @@ function! s:new_table_convert_state(dict_table, prev_state, key, marker, mode_ta
 endfunction
 
 function! s:_TableConvertState_next0(in, out) abort dict
-  " NOTE: err = s:SKKDict.ERROR.ALREADY_UPTODATE should never happen at the first time
-  let err = self._dict_table.reload()
-  if err isnot# s:Error.NIL
-    return [self, err]
-  endif
+  call a:in.read_char()
   let [entry, err] = self._dict_table.get(self._key)
   if err isnot# s:Error.NIL
     return [self, err]
@@ -646,6 +653,7 @@ function! s:_TableConvertState_next0(in, out) abort dict
   let state = {
   \ '_dict_table': self._dict_table,
   \ '_prev_state': self._prev_state,
+  \ '_prev_inserted': self._prev_inserted,
   \ '_key': self._key,
   \ '_marker': self._marker,
   \ '_mode_table': self._mode_table,
@@ -676,13 +684,24 @@ function! s:_TableConvertState_next1(in, out) abort dict
     " Handle <CR> in TableNormalState
     call a:in.unread()
     return [state, s:Error.NIL]
+  elseif c is# "\<C-g>"
+    return s:_restore_prev_state(self, a:out)
   elseif c is# ' '
     if self._cand_idx >=# len(self._candidates) - 1
+      " Remove marker
+      let cand = s:SKKDict.EntryCandidate.get_string(self._candidates[self._cand_idx])
+      let bs = repeat("\<C-h>", strchars(self._marker . cand))
+      call a:out.write(bs . cand)
       " Change to register state
       let state = s:new_register_dict_state(
-      \ self, s:REGDICT_LEFT_MARKER, s:REGDICT_RIGHT_MARKER
+      \ self,
+      \ self._key,
+      \ s:REGDICT_HEAD_MARKER,
+      \ s:REGDICT_LEFT_MARKER,
+      \ s:REGDICT_RIGHT_MARKER
       \)
-      return [state, s:Error.NIL]
+      call a:in.unread()
+      return state.next(a:in, a:out)
     endif
     let self._cand_idx += 1
     let cand = s:SKKDict.EntryCandidate.get_string(self._candidates[self._cand_idx])
@@ -691,7 +710,7 @@ function! s:_TableConvertState_next1(in, out) abort dict
     return [self, s:Error.NIL]
   elseif c is# 'x'
     if self._cand_idx <=# 0
-      return [self._prev_state, s:Error.NIL]
+      return s:_restore_prev_state(self, a:out)
     endif
     let self._cand_idx -= 1
     let cand = s:SKKDict.EntryCandidate.get_string(self._candidates[self._cand_idx])
@@ -706,18 +725,68 @@ function! s:_TableConvertState_next1(in, out) abort dict
   endif
 endfunction
 
-function! s:new_register_dict_state(prev_state, left_marker, right_marker) abort
+function! s:_restore_prev_state(state, out) abort
+  " Remove marker
+  let cand = s:SKKDict.EntryCandidate.get_string(a:state._candidates[a:state._cand_idx])
+  let bs = repeat("\<C-h>", strchars(a:state._marker . cand))
+  call a:out.write(bs . a:state._prev_inserted)
+  return [a:state._prev_state, s:Error.NIL]
+endfunction
+
+function! s:new_register_dict_state(prev_state, key, head_marker, left_marker, right_marker) abort
   return {
   \ '_prev_state': a:prev_state,
+  \ '_key': a:key,
+  \ '_head_marker': a:head_marker,
   \ '_left_marker': a:left_marker,
   \ '_right_marker': a:right_marker,
-  \ 'next': function('s:_RegisterDictState_next'),
+  \ 'next': function('s:_RegisterDictState_next0'),
   \}
 endfunction
 
-function! s:_RegisterDictState_next(in, out) abort dict
-  " TODO
-  throw 'not implemented yet'
+function! s:_RegisterDictState_next0(in, out) abort dict
+  call a:in.read_char()
+
+  " Insert markers
+  call a:out.write(
+  \ self._head_marker . self._key .
+  \ self._left_marker . self._right_marker . "\<Left>"
+  \)
+
+  let [skkdict, err] = s:_get_table_lazy(s:SKKDICT_TABLES.name)
+  if err isnot# s:Error.NIL
+    let err = s:Error.wrap(err, 'Cannot load ' . s:SKKDICT_TABLES.name . ' table')
+    return [self, err]
+  endif
+  let state = {
+  \ '_key': self._key,
+  \ '_prev_state': self._prev_state,
+  \ '_sub_state': s:new_kana_state(),
+  \ '_bw': s:VimBufferWriter.new(),
+  \ '_skkdict': skkdict,
+  \ 'next': function('s:_RegisterDictState_next1'),
+  \}
+  return [state, s:Error.NIL]
+endfunction
+
+function! s:_RegisterDictState_next1(in, out) abort dict
+  let out = s:MultiWriter.new([a:out, self._bw])
+  while a:in.size() ># 0
+    let [self._sub_state, err] = self._sub_state.next(a:in, out)
+    if err isnot# s:Error.NIL
+      return [self, err]
+    endif
+    " If <CR> was pressed, register the word and return to the previous state
+    let word = self._bw.to_string()
+    if matchstr(word, '.$') is# "\<CR>"
+      let err = self._skkdict.register(self._key, word)
+      if err isnot# s:Error.NIL
+        return [self, err]
+      endif
+      return [self._prev_state, s:Error.NIL]
+    endif
+  endwhile
+  return [self, s:Error.NIL]
 endfunction
 
 " }}}
