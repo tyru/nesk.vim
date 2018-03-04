@@ -407,24 +407,23 @@ function! s:_TableBufferingState_next1(in, out) abort dict
     let state = s:new_table_normal_state(self._mode_table)
     return [state, s:Error.NIL]
   elseif c is# 'l'
-    " Change to ascii mode
     if empty(self._converted_key)
-      let n = strchars(self._marker . join(self._buf, '') . self._key)
-      let bs = repeat("\<C-h>", n)
+      " Remove inserted string
+      let bs = repeat("\<C-h>", strchars(self._marker . join(self._buf, '') . self._key))
       call a:out.write(bs)
-      " Change mode (must leave one character at least for ModeChangeState)
+      " Change to ascii mode (must leave one character at least for ModeChangeState)
       call a:in.unread()
       let state = s:Nesk.new_mode_change_state(self._ascii_mode_name)
       return [state, s:Error.NIL]
+    else
+      " NOTE: Vim only behavior: if a:state._converted_key is not empty,
+      " insert the string to buffer (e.g. "Kanjil" -> "kanji")
+      let bs = repeat("\<C-h>", strchars(self._marker . join(self._buf, '') . self._key))
+      call a:out.write(bs . join(self._converted_key, ''))
+      " Back to TableNormalState
+      let state = s:new_table_normal_state(self._mode_table)
+      return [state, s:Error.NIL]
     endif
-    " NOTE: Vim only behavior: if a:state._converted_key is not empty,
-    " insert the string to buffer (e.g. "Kanjil" -> "kanji")
-    let bs = repeat("\<C-h>", strchars(self._marker . join(self._buf, '') . self._key))
-    call a:out.write(bs . join(self._converted_key, ''))
-    let self._converted_key = []
-    let self._buf = []
-    call a:in.unread()
-    return self.next(a:in, a:out)
   elseif c is# 'L'
     " NOTE: Vim only behavior: if a:state._converted_key is not empty,
     " insert the string to buffer (e.g. "KanjiL" -> "ｋａｎｊｉ")
