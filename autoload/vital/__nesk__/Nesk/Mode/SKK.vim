@@ -413,7 +413,8 @@ function! s:_TableBufferingState_next1(in, out) abort dict
     endif
     " NOTE: Vim only behavior: if a:state._converted_key is not empty,
     " insert the string to buffer (e.g. "Kanjil" -> "kanji")
-    call a:out.write(join(self._converted_key, ''))
+    let bs = repeat("\<C-h>", strchars(self._marker) + len(self._buf) + strchars(self._key))
+    call a:out.write(bs . join(self._converted_key, ''))
     let self._converted_key = []
     let self._buf = []
     call a:in.unread()
@@ -456,10 +457,17 @@ function! s:_TableBufferingState_next1(in, out) abort dict
         let bs = repeat("\<C-h>", strchars(self._key))
         call a:out.write(bs)
         let self._key = c
-      endif
-      let err = s:_convert_key(self, a:in, a:out)
-      if err isnot# s:Error.NIL
-        return [self, err]
+        let err = s:_convert_key(self, a:in, a:out)
+        if err isnot# s:Error.NIL
+          return [self, err]
+        endif
+      else
+        let err = s:_convert_key(self, a:in, a:out)
+        if err isnot# s:Error.NIL
+          return [self, err]
+        endif
+        let self._key = c
+        call a:out.write(c)
       endif
     elseif len(cands) is# 1
       let pair = cands[0][1]
