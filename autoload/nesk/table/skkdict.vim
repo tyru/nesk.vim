@@ -5,19 +5,17 @@ set cpo&vim
 
 
 function! s:init(V) abort
-  let s:SKKDictTable = a:V.import('Nesk.Table.SKKDict')
+  let s:SKKDict = a:V.import('Nesk.Table.SKKDict')
 endfunction
 call s:init(vital#nesk#new())
 
 
 function! nesk#table#skkdict#new(name, path, sorted, encoding) abort
-  return s:SKKDictTable.new(a:name, a:path, a:sorted, a:encoding)
+  return s:SKKDict.new(a:name, a:path, a:sorted, a:encoding)
 endfunction
 
 function! nesk#table#skkdict#new_multi(name, tables) abort
-  return extend(nesk#table#multi#new(a:name, a:tables), {
-  \ 'reload': s:SKKDictTable.Multi.reload
-  \})
+  return extend(nesk#table#multi#new(a:name, a:tables), s:SKKDict.Multi)
 endfunction
 
 

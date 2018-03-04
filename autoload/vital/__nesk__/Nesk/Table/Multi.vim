@@ -16,15 +16,15 @@ endfunction
 
 function! s:new(name, tables) abort
   return {
-  \ '_tables': a:tables,
+  \ 'tables': a:tables,
   \ 'name': a:name,
   \ 'get': function('s:_MultiTable_get'),
   \ 'search': function('s:_MultiTable_search'),
   \}
 endfunction
 
-function! s:_MultiTable_get(key) abort
-  for table in self._tables
+function! s:_MultiTable_get(key) abort dict
+  for table in self.tables
     let [l:Value, err] = table.get(a:key)
     if err is# s:Error.NIL
       return [l:Value, s:Error.NIL]
@@ -33,11 +33,11 @@ function! s:_MultiTable_get(key) abort
   return [s:Error.NIL, s:Table.ERROR.NO_RESULTS]
 endfunction
 
-function! s:_MultiTable_search(prefix, ...) abort
+function! s:_MultiTable_search(prefix, ...) abort dict
   let limit = a:0 && type(a:1) is# v:t_number ? a:1 : 1/0
   let results = []
   let merr = s:Error.new_multi()
-  for table in self._tables
+  for table in self.tables
     let [list, err] = table.search(a:prefix, limit)
     if err is# s:Error.NIL
       let results += list

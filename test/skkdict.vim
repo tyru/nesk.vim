@@ -1,6 +1,7 @@
 
 function! s:init(V) abort
   let s:Error = a:V.import('Nesk.Error')
+  let s:SKKDict = a:V.import('Nesk.Table.SKKDict')
 endfunction
 call s:init(vital#nesk#new())
 
@@ -30,6 +31,11 @@ function! s:run() abort
   let [entry, err] = sysdict.get('わんきゅう')
   call assert_equal(s:Error.NIL, err)
   call assert_equal(['わんきゅう', ['椀久', '椀屋久右衛門']], entry)
+  call assert_equal('わんきゅう', s:SKKDict.Entry.get_key(entry))
+  let candidates = s:SKKDict.Entry.get_candidates(entry)
+  call assert_equal([['椀久', '椀屋久右衛門']], candidates)
+  call assert_equal('椀久', s:SKKDict.EntryCandidate.get_string(candidates[0]))
+  call assert_equal('椀屋久右衛門', s:SKKDict.EntryCandidate.get_annotation(candidates[0]))
 
   let [entry, err] = sysdict.get('おもu')
   call assert_equal(s:Error.NIL, err)

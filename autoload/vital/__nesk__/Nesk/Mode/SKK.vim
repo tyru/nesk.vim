@@ -8,11 +8,12 @@ function! s:_vital_loaded(V) abort
   let s:Nesk = a:V.import('Nesk')
   let s:Error = a:V.import('Nesk.Error')
   let s:StringReader = a:V.import('Nesk.StringReader')
+  let s:SKKDict = a:V.import('Nesk.Table.SKKDict')
   let s:ERROR_NO_RESULTS = a:V.import('Nesk.Table').ERROR.NO_RESULTS
 endfunction
 
 function! s:_vital_depends() abort
-  return ['Nesk', 'Nesk.Error', 'Nesk.StringReader', 'Nesk.Table']
+  return ['Nesk', 'Nesk.Error', 'Nesk.StringReader', 'Nesk.Table.SKKDict', 'Nesk.Table']
 endfunction
 
 
@@ -39,6 +40,9 @@ let s:SKKDICT_TABLES = {
 \}
 let s:BUFFERING_MARKER = "▽"
 let s:OKURI_MARKER = "▼"
+let s:CONVERT_MARKER = "▼"
+let s:REGDICT_LEFT_MARKER = '【'
+let s:REGDICT_RIGHT_MARKER = '】'
 
 
 function! s:new_kana_mode() abort
@@ -145,10 +149,10 @@ endfunction
 
 " Table Normal State (kana, kata, hankata) {{{
 
-function! s:new_table_normal_state(table) abort
+function! s:new_table_normal_state(mode_table) abort
   " TODO: Global variable (mode names and table names)
   return {
-  \ '_mode_table': a:table,
+  \ '_mode_table': a:mode_table,
   \ '_key': '',
   \ '_ascii_mode_name': 'skk/ascii',
   \ '_zenei_mode_name': 'skk/zenei',
@@ -306,10 +310,10 @@ function! s:_TableNormalState_commit() abort dict
 endfunction
 
 
-function! s:new_table_buffering_state(table, marker) abort
+function! s:new_table_buffering_state(mode_table, marker) abort
   " TODO: Global variable (mode names and table names)
   return {
-  \ '_mode_table': a:table,
+  \ '_mode_table': a:mode_table,
   \ '_marker': a:marker,
   \ '_key': '',
   \ '_converted_key': [],
@@ -341,8 +345,9 @@ function! s:_TableBufferingState_next1(in, out) abort dict
       let self._key = ''
     endif
     " Back to TableNormalState
-    let bs = repeat("\<C-h>", strchars(self._marker) + len(self._buf))
-    call a:out.write(bs . join(self._buf, ''))
+    let buf = join(self._buf, '')
+    let bs = repeat("\<C-h>", strchars(self._marker . buf))
+    call a:out.write(bs . buf)
     let state = s:new_table_normal_state(self._mode_table)
     return [state, s:Error.NIL]
   elseif c is# "\<CR>"
@@ -368,8 +373,9 @@ function! s:_TableBufferingState_next1(in, out) abort dict
       return [self, s:Error.NIL]
     endif
     " Back to TableNormalState
-    let bs = repeat("\<C-h>", strchars(self._marker) + len(self._buf))
-    call a:out.write(bs . join(self._buf, ''))
+    let buf = join(self._buf, '')
+    let bs = repeat("\<C-h>", strchars(self._marker . buf))
+    call a:out.write(bs . buf)
     let state = s:new_table_normal_state(self._mode_table)
     return [state, s:Error.NIL]
   elseif c is# "\x80"    " backspace is \x80 k b
@@ -393,7 +399,7 @@ function! s:_TableBufferingState_next1(in, out) abort dict
   elseif c is# "\<C-g>"
     if !empty(self._buf)
       " Remove inserted string
-      let n = strchars(self._marker) + len(self._buf) + strchars(self._key)
+      let n = strchars(self._marker . join(self._buf, '') . self._key)
       let bs = repeat("\<C-h>", n)
       call a:out.write(bs)
     endif
@@ -403,7 +409,7 @@ function! s:_TableBufferingState_next1(in, out) abort dict
   elseif c is# 'l'
     " Change to ascii mode
     if empty(self._converted_key)
-      let n = strchars(self._marker) + len(self._buf) + strchars(self._key)
+      let n = strchars(self._marker . join(self._buf, '') . self._key)
       let bs = repeat("\<C-h>", n)
       call a:out.write(bs)
       " Change mode (must leave one character at least for ModeChangeState)
@@ -413,7 +419,7 @@ function! s:_TableBufferingState_next1(in, out) abort dict
     endif
     " NOTE: Vim only behavior: if a:state._converted_key is not empty,
     " insert the string to buffer (e.g. "Kanjil" -> "kanji")
-    let bs = repeat("\<C-h>", strchars(self._marker) + len(self._buf) + strchars(self._key))
+    let bs = repeat("\<C-h>", strchars(self._marker . join(self._buf, '') . self._key))
     call a:out.write(bs . join(self._converted_key, ''))
     let self._converted_key = []
     let self._buf = []
@@ -445,6 +451,18 @@ function! s:_TableBufferingState_next1(in, out) abort dict
       endif
     endwhile
     return [state, s:Error.NIL]
+  elseif c is# ' '
+    let [dict_table, err] = nesk#get_instance().get_table(s:SKKDICT_TABLES.name)
+    if err isnot# s:Error.NIL
+      let err = s:Error.wrap(err, 'Cannot load ' . s:SKKDICT_TABLES.name . ' table')
+      return [s:Error.NIL, err]
+    endif
+    let new_key = join(self._buf, '')
+    let bs = repeat("\<C-h>", strchars(self._marker . join(self._buf, '') . self._key))
+    call a:out.write(bs)
+    let state = s:new_table_convert_state(dict_table, self, new_key, s:CONVERT_MARKER, self._mode_table)
+    call a:in.unread()
+    return state.next(a:in, a:out)
   else
     let [cands, err] = self._mode_table.search(self._key . c)
     if err isnot# s:Error.NIL
@@ -510,8 +528,113 @@ function! s:_convert_key(state, in, out) abort
 endfunction
 
 function! s:_TableBufferingState_commit() abort dict
-  let bs = repeat("\<C-h>", len(self._buf))
-  return bs . join(self._buf, '')
+  let buf = join(self._buf, '')
+  let bs = repeat("\<C-h>", strchars(buf))
+  return bs . buf
+endfunction
+
+
+function! s:new_table_convert_state(dict_table, prev_state, key, marker, mode_table) abort
+  return {
+  \ '_dict_table': a:dict_table,
+  \ '_prev_state': a:prev_state,
+  \ '_key': a:key,
+  \ '_marker': a:marker,
+  \ '_mode_table': a:mode_table,
+  \ 'next': function('s:_TableConvertState_next0'),
+  \}
+endfunction
+
+function! s:_TableConvertState_next0(in, out) abort dict
+  " NOTE: err = s:SKKDict.ERROR.ALREADY_UPTODATE should never happen at the first time
+  let err = self._dict_table.reload()
+  if err isnot# s:Error.NIL
+    return [self, err]
+  endif
+  let [entry, err] = self._dict_table.get(self._key)
+  if err isnot# s:Error.NIL
+    return [self, err]
+  endif
+  let candidates = s:SKKDict.Entry.get_candidates(entry)
+  if empty(candidates)
+    return [self, s:Error.new('candidates of ' . string(self._key) . ' are empty')]
+  endif
+  call a:out.write(self._marker . s:SKKDict.EntryCandidate.get_string(candidates[0]))
+  let state = {
+  \ '_dict_table': self._dict_table,
+  \ '_prev_state': self._prev_state,
+  \ '_key': self._key,
+  \ '_marker': self._marker,
+  \ '_mode_table': self._mode_table,
+  \ '_candidates': candidates,
+  \ '_cand_idx': 0,
+  \ 'next': function('s:_TableConvertState_next1'),
+  \}
+  return [state, s:Error.NIL]
+endfunction
+
+function! s:_TableConvertState_next1(in, out) abort dict
+  let c = a:in.read_char()
+  if c is# "\<C-j>"
+    " Remove marker
+    let cand = s:SKKDict.EntryCandidate.get_string(self._candidates[self._cand_idx])
+    let bs = repeat("\<C-h>", strchars(self._marker . cand))
+    call a:out.write(bs . cand)
+    " Back to TableNormalState
+    let state = s:new_table_normal_state(self._mode_table)
+    return [state, s:Error.NIL]
+  elseif c is# "\<CR>"
+    " Back to TableNormalState
+    let in = s:StringReader.new("\<C-j>")
+    let [state, err] = self.next(in, a:out)
+    if err isnot# s:Error.NIL
+      return [state, err]
+    endif
+    " Handle <CR> in TableNormalState
+    call a:in.unread()
+    return [state, s:Error.NIL]
+  elseif c is# ' '
+    if self._cand_idx >=# len(self._candidates) - 1
+      " Change to register state
+      let state = s:new_register_dict_state(
+      \ self, s:REGDICT_LEFT_MARKER, s:REGDICT_RIGHT_MARKER
+      \)
+      return [state, s:Error.NIL]
+    endif
+    let self._cand_idx += 1
+    let cand = s:SKKDict.EntryCandidate.get_string(self._candidates[self._cand_idx])
+    let bs = repeat("\<C-h>", strchars(self._marker . cand))
+    call a:out.write(bs . self._marker . cand)
+    return [self, s:Error.NIL]
+  elseif c is# 'x'
+    if self._cand_idx <=# 0
+      return [self._prev_state, s:Error.NIL]
+    endif
+    let self._cand_idx -= 1
+    let cand = s:SKKDict.EntryCandidate.get_string(self._candidates[self._cand_idx])
+    let bs = repeat("\<C-h>", strchars(self._marker . cand))
+    call a:out.write(bs . self._marker . cand)
+    return [self, s:Error.NIL]
+  else
+    " Handle in TableNormalState
+    call a:in.unread()
+    let in = s:StringReader.new("\<C-j>")
+    return self.next(in, a:out)
+  endif
+endfunction
+
+function! s:new_register_dict_state(prev_state, left_marker, right_marker) abort
+  return {
+  \ '_prev_state': a:prev_state,
+  \ '_left_marker': a:left_marker,
+  \ '_right_marker': a:right_marker,
+  \ 'next': function('s:_RegisterDictState_next'),
+  \}
+endfunction
+
+function! s:_RegisterDictState_next(in, out) abort dict
+  " TODO
+  throw 'not implemented yet'
 endfunction
 
 " }}}

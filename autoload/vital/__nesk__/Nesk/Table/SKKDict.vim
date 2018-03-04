@@ -8,6 +8,8 @@ function! s:_vital_created(M) abort
   let s:ERROR = {}
   let a:M.ERROR = s:ERROR
   let a:M.Multi = s:Multi
+  let a:M.Entry = s:Entry
+  let a:M.EntryCandidate = s:EntryCandidate
 endfunction
 
 function! s:_vital_loaded(V) abort
@@ -36,7 +38,13 @@ function! s:new(name, path, sorted, encoding) abort
   \
   \ 'name': a:name,
   \ 'reload': function('s:_SKKDictTable_reload'),
+  \ 'get': function('s:_throw', ['Must call SKKDict.reload() before SKKDict.get()']),
+  \ 'search': function('s:_throw', ['Must call SKKDict.reload() before SKKDict.search()']),
   \}
+endfunction
+
+function! s:_throw(msg, ...) abort
+  throw a:msg . ': args =' . string(a:000)
 endfunction
 
 
@@ -202,6 +210,25 @@ endfunction
 
 let s:Multi = {}
 
+function! s:_MultiSKKDictTable_get(key) abort dict
+  let cands = []
+  for table in self.tables
+    let [entry, err] = table.get(a:key)
+    if err isnot# s:Error.NIL
+      if err isnot# s:Table.ERROR.NO_RESULTS
+        return [s:Error.NIL, err]
+      endif
+    else
+      let cands += s:Entry.get_candidates(entry)
+    endif
+  endfor
+  if empty(cands)
+    return [s:Error.NIL, s:Table.ERROR.NO_RESULTS]
+  endif
+  return [s:Entry.new(a:key, cands), s:Error.NIL]
+endfunction
+let s:Multi.get = function('s:_MultiSKKDictTable_get')
+
 function! s:_MultiSKKDictTable_reload() abort dict
   for table in self.tables
     let err = table.reload()
@@ -212,6 +239,36 @@ function! s:_MultiSKKDictTable_reload() abort dict
   return s:Error.NIL
 endfunction
 let s:Multi.reload = function('s:_MultiSKKDictTable_reload')
+
+
+let s:Entry = {}
+
+function! s:_Entry_new(key, cands) abort
+  return [a:key] + a:cands
+endfunction
+let s:Entry.new = function('s:_Entry_new')
+
+function! s:_Entry_get_key(entry) abort
+  return a:entry[0]
+endfunction
+let s:Entry.get_key = function('s:_Entry_get_key')
+
+function! s:_Entry_get_candidates(entry) abort
+  return a:entry[1:]
+endfunction
+let s:Entry.get_candidates = function('s:_Entry_get_candidates')
+
+let s:EntryCandidate = {}
+
+function! s:_EntryCandidate_get_string(cand) abort
+  return a:cand[0]
+endfunction
+let s:EntryCandidate.get_string = function('s:_EntryCandidate_get_string')
+
+function! s:_EntryCandidate_get_annotation(cand) abort
+  return a:cand[1]
+endfunction
+let s:EntryCandidate.get_annotation = function('s:_EntryCandidate_get_annotation')
 
 
 let &cpo = s:save_cpo
