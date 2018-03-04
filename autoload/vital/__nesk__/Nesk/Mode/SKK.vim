@@ -17,9 +17,71 @@ function! s:_vital_depends() abort
 endfunction
 
 
+" Table registration {{{
+
+let s:loaded_table = {}
+let s:define_table_func = {}
+
+function! s:_define_table_lazy(table_name)
+  if !has_key(s:loaded_table, a:table_name)
+    if !has_key(s:define_table_func, a:table_name)
+      return s:Error.new('no table func for ' . a:table_name)
+    endif
+    let err = s:define_table_func[a:table_name]()
+    if err isnot# s:Error.NIL
+      return err
+    endif
+    let s:loaded_table[a:table_name] = 1
+  endif
+  return s:Error.NIL
+endfunction
+
+function! s:define_table_func.kana() abort
+  let nesk = nesk#get_instance()
+  " Define kana table
+  let table = nesk#table#kana#new()
+  let err = nesk.define_table(table)
+  if err isnot# s:Error.NIL
+    let err = s:Error.wrap(err, 'kana mode failed to register "' . table.name . '" table')
+    return err
+  endif
+  " Define skkdict table
+  let tables = []
+  for t in s:SKKDICT_TABLES.tables
+    let table = nesk#table#skkdict#new(t.name, t.path, t.sorted, t.encoding)
+    let err = nesk.define_table(table)
+    if err isnot# s:Error.NIL
+      let err = s:Error.wrap(err, 'kana mode failed to register "' . table.name . '" table')
+      return err
+    endif
+    let tables += [table]
+  endfor
+  let table = nesk#table#skkdict#new_multi(s:SKKDICT_TABLES.name, tables)
+  let err = nesk.define_table(table)
+  return s:Error.wrap(err, 'kana mode failed to register "' . table.name . '" table')
+endfunction
+
+function! s:define_table_func.kata() abort
+  return nesk#get_instance().define_table(nesk#table#kata#new())
+endfunction
+
+function! s:define_table_func.hankata() abort
+  return nesk#get_instance().define_table(nesk#table#hankata#new())
+endfunction
+
+function! s:define_table_func.zenei() abort
+  return nesk#get_instance().define_table(nesk#table#zenei#new())
+endfunction
+
+function! s:_get_table_lazy(table_name) abort
+  call s:_define_table_lazy(a:table_name)
+  return nesk#get_instance().get_table(a:table_name)
+endfunction
+
+" }}}
+
 " 'kana' mode {{{
 
-let s:loaded_kana_and_skkdict_table = 0
 " TODO: Global variable
 let s:SKKDICT_TABLES = {
 \ 'name': 'skkdict',
@@ -53,49 +115,16 @@ endfunction
 
 " Set up kana mode: define tables, and change state to TableNormalState.
 function! s:_KanaState_next(in, out) abort
-  let nesk = nesk#get_instance()
-
-  if !s:loaded_kana_and_skkdict_table
-    " Define kana table
-    let table = nesk#table#kana#new()
-    let err = nesk.define_table(table)
-    if err isnot# s:Error.NIL
-      let err = s:Error.wrap(err, 'kana mode failed to register "' . table.name . '" table')
-      return [s:Error.NIL, err]
-    endif
-    " Define skkdict table
-    let tables = []
-    for t in s:SKKDICT_TABLES.tables
-      let table = nesk#table#skkdict#new(t.name, t.path, t.sorted, t.encoding)
-      let err = nesk.define_table(table)
-      if err isnot# s:Error.NIL
-        let err = s:Error.wrap(err, 'kana mode failed to register "' . table.name . '" table')
-        return [s:Error.NIL, err]
-      endif
-      let tables += [table]
-    endfor
-    let table = nesk#table#skkdict#new_multi(s:SKKDICT_TABLES.name, tables)
-    let err = nesk.define_table(table)
-    if err isnot# s:Error.NIL
-      let err = s:Error.wrap(err, 'kana mode failed to register "' . table.name . '" table')
-      return [s:Error.NIL, err]
-    endif
-    let s:loaded_kana_and_skkdict_table = 1
-  endif
-
-  let [table, err] = nesk.get_table('kana')
+  let [table, err] = s:_get_table_lazy('kana')
   if err isnot# s:Error.NIL
     return [s:Error.NIL, s:Error.wrap(err, 'Cannot load kana table')]
   endif
-
   return s:new_table_normal_state(table).next(a:in, a:out)
 endfunction
 
 " }}}
 
 " 'kata' mode {{{
-
-let s:loaded_kata_table = 0
 
 function! s:new_kata_mode() abort
   let state = {'next': function('s:_KataState_next')}
@@ -104,25 +133,16 @@ function! s:new_kata_mode() abort
 endfunction
 
 function! s:_KataState_next(in, out) abort
-  if !s:loaded_kata_table
-    call nesk#define_table(nesk#table#kata#new())
-    let s:loaded_kata_table = 1
-  endif
-
-  let nesk = nesk#get_instance()
-  let [table, err] = nesk.get_table('kata')
+  let [table, err] = s:_get_table_lazy('kata')
   if err isnot# s:Error.NIL
     return [s:Error.NIL, s:Error.wrap(err, 'Cannot load kata table')]
   endif
-
   return s:new_table_normal_state(table).next(a:in, a:out)
 endfunction
 
 " }}}
 
 " 'hankata' mode {{{
-
-let s:loaded_hankata_table = 0
 
 function! s:new_hankata_mode() abort
   let state = {'next': function('s:_HankataState_next')}
@@ -131,13 +151,7 @@ function! s:new_hankata_mode() abort
 endfunction
 
 function! s:_HankataState_next(in, out) abort
-  if !s:loaded_hankata_table
-    call nesk#define_table(nesk#table#hankata#new())
-    let s:loaded_hankata_table = 1
-  endif
-
-  let nesk = nesk#get_instance()
-  let [table, err] = nesk.get_table('hankata')
+  let [table, err] = s:_get_table_lazy('hankata')
   if err isnot# s:Error.NIL
     return [s:Error.NIL, s:Error.wrap(err, 'Cannot load hankata table')]
   endif
@@ -156,14 +170,14 @@ function! s:new_table_normal_state(mode_table) abort
   \ '_key': '',
   \ '_ascii_mode_name': 'skk/ascii',
   \ '_zenei_mode_name': 'skk/zenei',
-  \ '_kata_table_name': 'skk/kata',
-  \ '_hankata_table_name': 'skk/hankata',
+  \ '_kata_table_name': 'kata',
+  \ '_hankata_table_name': 'hankata',
   \ 'commit': function('s:_TableNormalState_commit'),
   \ 'next': function('s:_TableNormalState_next'),
   \}
 endfunction
 
-" a:in.unread() continues nesk.filter() loop
+" a:in.unread() continues nesk.rewrite() loop
 " after leaving this function.
 " (the loop exits when a:in becomes empty)
 function! s:_TableNormalState_next(in, out) abort dict
@@ -221,13 +235,13 @@ function! s:_TableNormalState_next(in, out) abort dict
     endif
     return [self, s:Error.NIL]
   elseif c is# 'l'
-    return s:_handle_mode_key(self, self._ascii_mode_name, a:in, a:out)
+    return s:_handle_normal_mode_key(self, self._ascii_mode_name, a:in, a:out)
   elseif c is# 'L'
-    return s:_handle_mode_key(self, self._zenei_mode_name, a:in, a:out)
+    return s:_handle_normal_mode_key(self, self._zenei_mode_name, a:in, a:out)
   elseif c is# 'q'
-    return s:_handle_table_key(self, self._kata_table_name, a:in, a:out)
+    return s:_handle_normal_table_key(self, self._kata_table_name, a:in, a:out)
   elseif c is# "\<C-q>"
-    return s:_handle_table_key(self, self._hankata_table_name, a:in, a:out)
+    return s:_handle_normal_table_key(self, self._hankata_table_name, a:in, a:out)
   elseif c is# 'Q'
     call a:in.unread()
     let state = s:new_table_buffering_state(self._mode_table, s:BUFFERING_MARKER)
@@ -273,7 +287,7 @@ function! s:_TableNormalState_next(in, out) abort dict
   endif
 endfunction
 
-function! s:_handle_mode_key(state, mode_name, in, out) abort
+function! s:_handle_normal_mode_key(state, mode_name, in, out) abort
   if a:state._key isnot# ''
     " Commit a:state._key and change mode
     call a:in.unread()
@@ -285,18 +299,13 @@ function! s:_handle_mode_key(state, mode_name, in, out) abort
   return [state, s:Error.NIL]
 endfunction
 
-function! s:_handle_table_key(state, table_name, in, out) abort
+function! s:_handle_normal_table_key(state, table_name, in, out) abort
   if a:state._key isnot# ''
     " Commit a:state._key and change table
     call a:in.unread()
     return a:state.next(s:StringReader.new("\<C-j>"), a:out)
   endif
-  " Change table
-  if a:state._mode_table.name is# a:table_name
-    " Do nothing
-    return [self, s:Error.NIL]
-  endif
-  let [table, err] = nesk#get_instance().get_table(a:table_name)
+  let [table, err] = s:_get_table_lazy(a:table_name)
   if err isnot# s:Error.NIL
     let err = s:Error.wrap(err, 'Cannot load ' . a:table_name . ' table')
     return [s:Error.NIL, err]
@@ -318,6 +327,9 @@ function! s:new_table_buffering_state(mode_table, marker) abort
   \ '_key': '',
   \ '_converted_key': [],
   \ '_ascii_mode_name': 'skk/ascii',
+  \ '_zenei_mode_name': 'skk/zenei',
+  \ '_kata_table_name': 'kata',
+  \ '_hankata_table_name': 'hankata',
   \ '_buf': [],
   \ 'commit': function('s:_TableBufferingState_commit'),
   \ 'next': function('s:_TableBufferingState_next0'),
@@ -407,45 +419,21 @@ function! s:_TableBufferingState_next1(in, out) abort dict
     let state = s:new_table_normal_state(self._mode_table)
     return [state, s:Error.NIL]
   elseif c is# 'l'
-    if empty(self._converted_key)
-      " Remove inserted string
-      let bs = repeat("\<C-h>", strchars(self._marker . join(self._buf, '') . self._key))
-      call a:out.write(bs)
-      " Change to ascii mode (must leave one character at least for ModeChangeState)
-      call a:in.unread()
-      let state = s:Nesk.new_mode_change_state(self._ascii_mode_name)
-      return [state, s:Error.NIL]
-    else
-      " NOTE: Vim only behavior: if a:state._converted_key is not empty,
-      " insert the string to buffer (e.g. "Kanjil" -> "kanji")
-
-      " Remove inserted string
-      let bs = repeat("\<C-h>", strchars(self._marker . join(self._buf, '') . self._key))
-      call a:out.write(bs)
-      " Change to ascii mode (ModeChangeState reads one character)
-      let state = s:Nesk.new_mode_change_state(self._ascii_mode_name)
-      let dummy = '@'
-      let in = s:StringReader.new(dummy . join(self._converted_key, '') . "\<C-j>")
-      while in.size() ># 0
-        let [state, err] = state.next(in, a:out)
-        if err isnot# s:Error.NIL
-          return [state, err]
-        endif
-      endwhile
-      return [state, s:Error.NIL]
-    endif
+    " NOTE: Vim only behavior: if a:state._converted_key is not empty,
+    " insert the string to buffer (e.g. "Kanjil" -> "kanji")
+    return s:_handle_buffering_mode_key(self, self._ascii_mode_name, a:in, a:out)
   elseif c is# 'L'
     " NOTE: Vim only behavior: if a:state._converted_key is not empty,
     " insert the string to buffer (e.g. "KanjiL" -> "ｋａｎｊｉ")
-    " TODO
+    return s:_handle_buffering_mode_key(self, self._zenei_mode_name, a:in, a:out)
   elseif c is# 'q'
     " NOTE: Vim only behavior: if a:state._converted_key is not empty,
     " insert the string to buffer (e.g. "Kanjiq" -> "カンジ")
-    " TODO
+    return s:_handle_buffering_table_key(self, self._kata_table_name, a:in, a:out)
   elseif c is# "\<C-q>"
     " NOTE: Vim only behavior: if a:state._converted_key is not empty,
     " insert the string to buffer (e.g. "Kanjiq" -> "ｶﾝｼﾞ")
-    " TODO
+    return s:_handle_buffering_table_key(self, self._hankata_table_name, a:in, a:out)
   elseif c is# 'Q'
     " TODO
     let state = s:new_table_okuri_state(self._mode_table, s:OKURI_MARKER)
@@ -461,7 +449,7 @@ function! s:_TableBufferingState_next1(in, out) abort dict
     endwhile
     return [state, s:Error.NIL]
   elseif c is# ' '
-    let [dict_table, err] = nesk#get_instance().get_table(s:SKKDICT_TABLES.name)
+    let [dict_table, err] = s:_get_table_lazy(s:SKKDICT_TABLES.name)
     if err isnot# s:Error.NIL
       let err = s:Error.wrap(err, 'Cannot load ' . s:SKKDICT_TABLES.name . ' table')
       return [s:Error.NIL, err]
@@ -512,6 +500,70 @@ function! s:_TableBufferingState_next1(in, out) abort dict
       let self._key .= c
     endif
     return [self, s:Error.NIL]
+  endif
+endfunction
+
+function! s:_handle_buffering_mode_key(state, mode_name, in, out) abort
+  if empty(a:state._converted_key)
+    " Remove inserted string
+    let bs = repeat("\<C-h>", strchars(a:state._marker . join(a:state._buf, '') . a:state._key))
+    call a:out.write(bs)
+    " Change mode (must leave one character at least for ModeChangeState)
+    call a:in.unread()
+    let state = s:Nesk.new_mode_change_state(a:mode_name)
+    return [state, s:Error.NIL]
+  else
+    " Remove inserted string
+    let bs = repeat("\<C-h>", strchars(a:state._marker . join(a:state._buf, '') . a:state._key))
+    call a:out.write(bs)
+    " Change mode (ModeChangeState reads one character)
+    let state = s:Nesk.new_mode_change_state(a:mode_name)
+    let dummy = '@'
+    let in = s:StringReader.new(dummy . join(a:state._converted_key, '') . "\<C-j>")
+    while in.size() ># 0
+      let [state, err] = state.next(in, a:out)
+      if err isnot# s:Error.NIL
+        return [state, err]
+      endif
+    endwhile
+    return [state, s:Error.NIL]
+  endif
+endfunction
+
+function! s:_handle_buffering_table_key(state, table_name, in, out) abort
+  if empty(a:state._converted_key)
+    " Remove inserted string
+    let bs = repeat("\<C-h>", strchars(a:state._marker . join(a:state._buf, '') . a:state._key))
+    call a:out.write(bs)
+    " Change mode (must leave one character at least for ModeChangeState)
+    call a:in.unread()
+    let [table, err] = s:_get_table_lazy(a:table_name)
+    if err isnot# s:Error.NIL
+      let err = s:Error.wrap(err, 'Cannot load ' . a:table_name . ' table')
+      return [s:Error.NIL, err]
+    endif
+    let state = s:new_table_normal_state(table)
+    return [state, s:Error.NIL]
+  else
+    " Remove inserted string
+    let bs = repeat("\<C-h>", strchars(a:state._marker . join(a:state._buf, '') . a:state._key))
+    call a:out.write(bs)
+    " Change mode (ModeChangeState reads one character)
+    let [table, err] = s:_get_table_lazy(a:table_name)
+    if err isnot# s:Error.NIL
+      let err = s:Error.wrap(err, 'Cannot load ' . a:table_name . ' table')
+      return [s:Error.NIL, err]
+    endif
+    let state = s:new_table_normal_state(table)
+    let dummy = '@'
+    let in = s:StringReader.new(dummy . join(a:state._converted_key, '') . "\<C-j>")
+    while in.size() ># 0
+      let [state, err] = state.next(in, a:out)
+      if err isnot# s:Error.NIL
+        return [state, err]
+      endif
+    endwhile
+    return [state, s:Error.NIL]
   endif
 endfunction
 
@@ -672,8 +724,6 @@ endfunction
 
 " 'zenei' mode {{{
 
-let s:loaded_zenei_table = 0
-
 function! s:new_zenei_mode() abort
   let state = {'next': function('s:_ZeneiTable_next0')}
   let mode = {'name': 'skk/zenei', 'initial_state': state}
@@ -681,17 +731,10 @@ function! s:new_zenei_mode() abort
 endfunction
 
 function! s:_ZeneiTable_next0(in, out) abort dict
-  if !s:loaded_zenei_table
-    call nesk#define_table(nesk#table#zenei#new())
-    let s:loaded_zenei_table = 1
-  endif
-
-  let nesk = nesk#get_instance()
-  let [table, err] = nesk.get_table('zenei')
+  let [table, err] = s:_get_table_lazy('zenei')
   if err isnot# s:Error.NIL
     return [s:Error.NIL, s:Error.wrap(err, 'Cannot load zenei table')]
   endif
-
   let next_state = {
   \ '_table': table,
   \ 'next': function('s:_ZeneiTable_next1'),
@@ -703,6 +746,7 @@ function! s:_ZeneiTable_next1(in, out) abort dict
   let c = a:in.read_char()
   if c is# "\<C-j>"
     " Change mode (must leave one character at least for ModeChangeState)
+    call a:in.unread()
     return [s:Nesk.new_mode_change_state('skk/kana'), s:Error.NIL]
   else
     let [str, err] = self._table.get(c)
