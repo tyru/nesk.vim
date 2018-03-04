@@ -224,7 +224,7 @@ function! s:_TableNormalState_next(in, out) abort dict
     return s:_handle_table_key(self, self._kata_table_name, a:in, a:out)
   elseif c is# "\<C-q>"
     return s:_handle_table_key(self, self._hankata_table_name, a:in, a:out)
-  elseif c =~# 'Q'
+  elseif c is# 'Q'
     call a:in.unread()
     let state = s:new_table_buffering_state(self._table, s:BUFFERING_MARKER)
     return [state, s:Error.NIL]
@@ -430,7 +430,7 @@ function! s:_TableBufferingState_next1(in, out) abort dict
     " NOTE: Vim only behavior: if a:state._converted_key is not empty,
     " insert the string to buffer (e.g. "Kanjiq" -> "ｶﾝｼﾞ")
     " TODO
-  elseif c =~# 'Q'
+  elseif c is# 'Q'
     " TODO
     let state = s:new_table_okuri_state(self._table, s:OKURI_MARKER)
     return [state, s:Error.NIL]
