@@ -30,7 +30,7 @@ function! s:wrap(err, exception) abort
     return s:new(a:exception, s:caller(1))
   endif
   return {
-  \ 'exception': printf('%s: %s', a:exception, a:err.error()),
+  \ 'exception': printf('%s: %s', a:exception, a:err.exception),
   \ 'throwpoint': s:caller(1),
   \}
 endfunction
