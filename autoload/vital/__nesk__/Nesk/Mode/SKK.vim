@@ -45,9 +45,13 @@ let s:REGDICT_RIGHT_MARKER = '】'
 
 
 function! s:new_kana_mode() abort
-  let state = {'next': function('s:_KanaState_next')}
+  let state = s:new_kana_state()
   let mode = {'name': 'skk/kana', 'initial_state': state}
   return mode
+endfunction
+
+function! s:new_kana_state() abort
+  return {'next': function('s:_KanaState_next')}
 endfunction
 
 " Set up kana mode: define tables, and change state to TableNormalState.
@@ -297,9 +301,11 @@ function! s:_TableNormalState_next(in, out) abort dict
   elseif c is# 'L'
     return s:_handle_normal_mode_key(self, self._zenei_mode_name, a:in, a:out)
   elseif c is# 'q'
-    return s:_handle_normal_table_key(self, self._kata_table_name, a:in, a:out)
+    let name = self._mode_table.name is# 'kana' ? self._kata_table_name : 'kana'
+    return s:_handle_normal_table_key(self, name, a:in, a:out)
   elseif c is# "\<C-q>"
-    return s:_handle_normal_table_key(self, self._hankata_table_name, a:in, a:out)
+    let name = self._mode_table.name is# 'kana' ? self._hankata_table_name : 'kana'
+    return s:_handle_normal_table_key(self, name, a:in, a:out)
   elseif c is# 'Q'
     call a:in.unread()
     let state = s:new_table_buffering_state(self._mode_table, s:BUFFERING_MARKER)
@@ -479,19 +485,19 @@ function! s:_TableBufferingState_next1(in, out) abort dict
   elseif c is# 'l'
     " NOTE: Vim only behavior: if a:state._converted_key is not empty,
     " insert the string to buffer (e.g. "Kanjil" -> "kanji")
-    return s:_handle_buffering_mode_key(self, self._ascii_mode_name, a:in, a:out)
+    return s:_send_converted_key_in_kana_state(self, a:in, a:out, 'l', "\<C-j>")
   elseif c is# 'L'
     " NOTE: Vim only behavior: if a:state._converted_key is not empty,
     " insert the string to buffer (e.g. "KanjiL" -> "ｋａｎｊｉ")
-    return s:_handle_buffering_mode_key(self, self._zenei_mode_name, a:in, a:out)
+    return s:_send_converted_key_in_kana_state(self, a:in, a:out, 'L', "\<C-j>")
   elseif c is# 'q'
     " NOTE: Vim only behavior: if a:state._converted_key is not empty,
     " insert the string to buffer (e.g. "Kanjiq" -> "カンジ")
-    return s:_handle_buffering_table_key(self, self._kata_table_name, a:in, a:out)
+    return s:_send_converted_key_in_kana_state(self, a:in, a:out, 'q', 'q')
   elseif c is# "\<C-q>"
     " NOTE: Vim only behavior: if a:state._converted_key is not empty,
     " insert the string to buffer (e.g. "Kanjiq" -> "ｶﾝｼﾞ")
-    return s:_handle_buffering_table_key(self, self._hankata_table_name, a:in, a:out)
+    return s:_send_converted_key_in_kana_state(self, a:in, a:out, "\<C-q>", "\<C-q>")
   elseif c is# 'Q'
     " TODO
     let state = s:new_table_okuri_state(self._mode_table, s:OKURI_MARKER)
@@ -561,68 +567,26 @@ function! s:_TableBufferingState_next1(in, out) abort dict
   endif
 endfunction
 
-function! s:_handle_buffering_mode_key(state, mode_name, in, out) abort
-  if empty(a:state._converted_key)
-    " Remove inserted string
-    let bs = repeat("\<C-h>", strchars(a:state._marker . join(a:state._buf, '') . a:state._key))
-    call a:out.write(bs)
-    " Change mode (must leave one character at least for ModeChangeState)
-    call a:in.unread()
-    let state = s:Nesk.new_mode_change_state(a:mode_name)
-    return [state, s:Error.NIL]
-  else
-    " Remove inserted string
-    let bs = repeat("\<C-h>", strchars(a:state._marker . join(a:state._buf, '') . a:state._key))
-    call a:out.write(bs)
-    " Change mode (ModeChangeState reads one character)
-    let state = s:Nesk.new_mode_change_state(a:mode_name)
-    let dummy = '@'
-    let in = s:StringReader.new(dummy . join(a:state._converted_key, '') . "\<C-j>")
-    while in.size() ># 0
-      let [state, err] = state.next(in, a:out)
-      if err isnot# s:Error.NIL
-        return [state, err]
-      endif
-    endwhile
-    return [state, s:Error.NIL]
-  endif
-endfunction
+function! s:_send_converted_key_in_kana_state(state, in, out, enter_char, back_char) abort
+  " Remove inserted string
+  let bs = repeat("\<C-h>", strchars(a:state._marker . join(a:state._buf, '') . a:state._key))
+  call a:out.write(bs)
 
-function! s:_handle_buffering_table_key(state, table_name, in, out) abort
   if empty(a:state._converted_key)
-    " Remove inserted string
-    let bs = repeat("\<C-h>", strchars(a:state._marker . join(a:state._buf, '') . a:state._key))
-    call a:out.write(bs)
-    " Change mode (must leave one character at least for ModeChangeState)
-    call a:in.unread()
-    let [table, err] = s:_get_table_lazy(a:table_name)
-    if err isnot# s:Error.NIL
-      let err = s:Error.wrap(err, 'Cannot load ' . a:table_name . ' table')
-      return [s:Error.NIL, err]
-    endif
-    let state = s:new_table_normal_state(table)
-    return [state, s:Error.NIL]
+    let in = s:StringReader.new(a:enter_char)
   else
-    " Remove inserted string
-    let bs = repeat("\<C-h>", strchars(a:state._marker . join(a:state._buf, '') . a:state._key))
-    call a:out.write(bs)
-    " Change mode (ModeChangeState reads one character)
-    let [table, err] = s:_get_table_lazy(a:table_name)
-    if err isnot# s:Error.NIL
-      let err = s:Error.wrap(err, 'Cannot load ' . a:table_name . ' table')
-      return [s:Error.NIL, err]
-    endif
-    let state = s:new_table_normal_state(table)
-    let dummy = '@'
-    let in = s:StringReader.new(dummy . join(a:state._converted_key, '') . "\<C-j>")
-    while in.size() ># 0
-      let [state, err] = state.next(in, a:out)
-      if err isnot# s:Error.NIL
-        return [state, err]
-      endif
-    endwhile
-    return [state, s:Error.NIL]
+    let in = s:StringReader.new(a:enter_char . join(a:state._converted_key, '') . a:back_char)
   endif
+
+  " Send a:state._converted_key in the certain mode again
+  let state = s:new_kana_state()
+  while in.size() ># 0
+    let [state, err] = state.next(in, a:out)
+    if err isnot# s:Error.NIL
+      return [state, err]
+    endif
+  endwhile
+  return [state, s:Error.NIL]
 endfunction
 
 " Convert self._key and append the result if succeeded
