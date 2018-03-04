@@ -5,6 +5,7 @@ set cpo&vim
 
 
 function! s:_vital_loaded(V) abort
+  let s:V = a:V
   let s:Nesk = a:V.import('Nesk')
   let s:Error = a:V.import('Nesk.Error')
   let s:StringReader = a:V.import('Nesk.StringReader')
@@ -15,7 +16,14 @@ function! s:_vital_loaded(V) abort
 endfunction
 
 function! s:_vital_depends() abort
-  return ['Nesk', 'Nesk.Error', 'Nesk.StringReader', 'Nesk.Table.SKKDict', 'Nesk.Table']
+  return [
+  \ 'Nesk',
+  \ 'Nesk.Error',
+  \ 'Nesk.StringReader',
+  \ 'Nesk.Table',
+  \ 'Nesk.Table.Kana',
+  \ 'Nesk.Table.SKKDict',
+  \]
 endfunction
 
 
@@ -185,7 +193,7 @@ endfunction
 function! s:define_table_func.kana() abort
   let nesk = nesk#get_instance()
   " Define kana table
-  let table = nesk#table#kana#new()
+  let table = s:V.import('Nesk.Table.Kana').new()
   let err = nesk.define_table(table)
   if err isnot# s:Error.NIL
     let err = s:Error.wrap(err, 'kana mode failed to register "' . table.name . '" table')
@@ -195,7 +203,7 @@ function! s:define_table_func.kana() abort
   let tables = []
   let reg_table = s:Error.NIL
   for t in s:SKKDICT_TABLES.tables
-    let table = nesk#table#skkdict#new(t.name, t.path, t.sorted, t.encoding)
+    let table = s:V.import('Nesk.Table.SKKDict').new(t.name, t.path, t.sorted, t.encoding)
     let err = nesk.define_table(table)
     if err isnot# s:Error.NIL
       let err = s:Error.wrap(err, 'kana mode failed to register "' . table.name . '" table')
@@ -207,21 +215,21 @@ function! s:define_table_func.kana() abort
     let tables += [table]
   endfor
   " If no sorted dictionaries found, this table is read-only
-  let table = nesk#table#skkdict#new_multi(s:SKKDICT_TABLES.name, tables, reg_table)
+  let table = s:V.import('Nesk.Table.SKKDict').new_multi(s:SKKDICT_TABLES.name, tables, reg_table)
   let err = nesk.define_table(table)
   return s:Error.wrap(err, 'kana mode failed to register "' . table.name . '" table')
 endfunction
 
 function! s:define_table_func.kata() abort
-  return nesk#get_instance().define_table(nesk#table#kata#new())
+  return nesk#get_instance().define_table(s:V.import('Nesk.Table.Kata').new())
 endfunction
 
 function! s:define_table_func.hankata() abort
-  return nesk#get_instance().define_table(nesk#table#hankata#new())
+  return nesk#get_instance().define_table(s:V.import('Nesk.Table.Hankata').new())
 endfunction
 
 function! s:define_table_func.zenei() abort
-  return nesk#get_instance().define_table(nesk#table#zenei#new())
+  return nesk#get_instance().define_table(s:V.import('Nesk.Table.Zenei').new())
 endfunction
 
 function! s:_get_table_lazy(table_name) abort

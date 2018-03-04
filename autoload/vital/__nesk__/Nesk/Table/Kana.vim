@@ -3,8 +3,13 @@ scriptencoding utf-8
 let s:save_cpo = &cpo
 set cpo&vim
 
-function! nesk#table#kana#new() abort
-  return nesk#table#hash#new('kana', {
+
+function! s:_vital_loaded(V) abort
+  let s:V = a:V
+endfunction
+
+function! s:new() abort
+  return s:V.import('Nesk.Table.Hash').new('kana', {
   \ 'a': ['あ', ''],
   \ 'bb': ['っ', 'b'],
   \ 'ba': ['ば', ''],
@@ -247,6 +252,7 @@ function! nesk#table#kana#new() abort
   \ ',': ['、', ''],
   \})
 endfunction
+
 
 let &cpo = s:save_cpo
 unlet s:save_cpo
