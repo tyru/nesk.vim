@@ -148,7 +148,7 @@ endfunction
 function! s:new_table_normal_state(table) abort
   " TODO: Global variable (mode names and table names)
   return {
-  \ '_table': a:table,
+  \ '_mode_table': a:table,
   \ '_key': '',
   \ '_ascii_mode_name': 'skk/ascii',
   \ '_zenei_mode_name': 'skk/zenei',
@@ -171,7 +171,7 @@ function! s:_TableNormalState_next(in, out) abort dict
     " Commit self._key
     let bs = repeat("\<C-h>", strchars(self._key))
     call a:out.write(bs)
-    let [pair, err] = self._table.get(self._key)
+    let [pair, err] = self._mode_table.get(self._key)
     if err isnot# s:ERROR_NO_RESULTS
       call a:out.write(pair[0])
     endif
@@ -226,7 +226,7 @@ function! s:_TableNormalState_next(in, out) abort dict
     return s:_handle_table_key(self, self._hankata_table_name, a:in, a:out)
   elseif c is# 'Q'
     call a:in.unread()
-    let state = s:new_table_buffering_state(self._table, s:BUFFERING_MARKER)
+    let state = s:new_table_buffering_state(self._mode_table, s:BUFFERING_MARKER)
     return [state, s:Error.NIL]
   elseif c =~# '^[A-Z]$'
     let in = s:StringReader.new('Q' . tolower(c))
@@ -239,13 +239,13 @@ function! s:_TableNormalState_next(in, out) abort dict
     endwhile
     return [state, s:Error.NIL]
   else
-    let [cands, err] = self._table.search(self._key . c)
+    let [cands, err] = self._mode_table.search(self._key . c)
     if err isnot# s:Error.NIL
       " This must not be occurred in this table object
       return [s:Error.NIL, s:Error.wrap(err, 'table.search() returned non-nil error')]
     endif
     if empty(cands)
-      let [pair, err] = self._table.get(self._key)
+      let [pair, err] = self._mode_table.get(self._key)
       if err is# s:ERROR_NO_RESULTS
         let bs = repeat("\<C-h>", strchars(self._key))
         let str = bs . c
@@ -288,7 +288,7 @@ function! s:_handle_table_key(state, table_name, in, out) abort
     return a:state.next(s:StringReader.new("\<C-j>"), a:out)
   endif
   " Change table
-  if a:state._table.name is# a:table_name
+  if a:state._mode_table.name is# a:table_name
     " Do nothing
     return [self, s:Error.NIL]
   endif
@@ -309,7 +309,7 @@ endfunction
 function! s:new_table_buffering_state(table, marker) abort
   " TODO: Global variable (mode names and table names)
   return {
-  \ '_table': a:table,
+  \ '_mode_table': a:table,
   \ '_marker': a:marker,
   \ '_key': '',
   \ '_converted_key': [],
@@ -343,7 +343,7 @@ function! s:_TableBufferingState_next1(in, out) abort dict
     " Back to TableNormalState
     let bs = repeat("\<C-h>", strchars(self._marker) + len(self._buf))
     call a:out.write(bs . join(self._buf, ''))
-    let state = s:new_table_normal_state(self._table)
+    let state = s:new_table_normal_state(self._mode_table)
     return [state, s:Error.NIL]
   elseif c is# "\<CR>"
     " Back to TableNormalState
@@ -370,7 +370,7 @@ function! s:_TableBufferingState_next1(in, out) abort dict
     " Back to TableNormalState
     let bs = repeat("\<C-h>", strchars(self._marker) + len(self._buf))
     call a:out.write(bs . join(self._buf, ''))
-    let state = s:new_table_normal_state(self._table)
+    let state = s:new_table_normal_state(self._mode_table)
     return [state, s:Error.NIL]
   elseif c is# "\x80"    " backspace is \x80 k b
     let str = c . a:in.read(2)
@@ -398,7 +398,7 @@ function! s:_TableBufferingState_next1(in, out) abort dict
       call a:out.write(bs)
     endif
     " Back to TableNormalState
-    let state = s:new_table_normal_state(self._table)
+    let state = s:new_table_normal_state(self._mode_table)
     return [state, s:Error.NIL]
   elseif c is# 'l'
     " Change to ascii mode
@@ -433,7 +433,7 @@ function! s:_TableBufferingState_next1(in, out) abort dict
     " TODO
   elseif c is# 'Q'
     " TODO
-    let state = s:new_table_okuri_state(self._table, s:OKURI_MARKER)
+    let state = s:new_table_okuri_state(self._mode_table, s:OKURI_MARKER)
     return [state, s:Error.NIL]
   elseif c =~# '^[A-Z]$'
     let in = s:StringReader.new('Q' . tolower(c))
@@ -446,13 +446,13 @@ function! s:_TableBufferingState_next1(in, out) abort dict
     endwhile
     return [state, s:Error.NIL]
   else
-    let [cands, err] = self._table.search(self._key . c)
+    let [cands, err] = self._mode_table.search(self._key . c)
     if err isnot# s:Error.NIL
       " This must not be occurred in this table object
       return [self, s:Error.wrap(err, 'table.search() returned non-nil error')]
     endif
     if empty(cands)
-      let [pair, err] = self._table.get(self._key)
+      let [pair, err] = self._mode_table.get(self._key)
       if err is# s:ERROR_NO_RESULTS
         let bs = repeat("\<C-h>", strchars(self._key))
         call a:out.write(bs)
@@ -493,7 +493,7 @@ endfunction
 function! s:_convert_key(state, in, out) abort
   let err = s:Error.NIL
   while a:state._key isnot# ''
-    let [pair, err] = a:state._table.get(a:state._key)
+    let [pair, err] = a:state._mode_table.get(a:state._key)
     if err is# s:ERROR_NO_RESULTS
       break
     endif
