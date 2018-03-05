@@ -22,43 +22,72 @@ function! s:_vital_depends() abort
 endfunction
 
 
-function! s:new(name, path, sorted, encoding) abort
-  let table = {
+function! s:builder(name, path, sorted, encoding) abort
+  return {
   \ '_path': a:path,
+  \ '_sorted': a:sorted,
   \ '_encoding': a:encoding,
   \
-  \ '_lines': [],
-  \ '_ari_index': -1,
-  \ '_nasi_index': -1,
-  \ '_lasttime': 0,
-  \
   \ 'name': a:name,
-  \ 'reload': function('s:_SKKDictTable_reload'),
-  \ 'get': function('s:_SKKDictTable_get'),
+  \ 'build': function('s:_SKKDictTableBuilder_build'),
   \}
-  return extend(table, a:sorted ? {
-  \ 'get_index': function('s:_SKKSortedDictTable_get_index'),
-  \ 'search': function('s:_SKKSortedDictTable_search'),
-  \} : {
-  \ 'get_index': function('s:_SKKUnsortedDictTable_get_index'),
-  \ 'search': function('s:_SKKUnsortedDictTable_search'),
-  \})
 endfunction
 
-function! s:_throw(msg, ...) abort
-  throw a:msg . ': args =' . string(a:000)
+function! s:_SKKDictTableBuilder_build() abort dict
+  let lines = readfile(self._path)
+  if self._encoding !=? &l:encoding
+    call map(lines, 'iconv(v:val, self._encoding, &l:encoding)')
+  endif
+  let ari = index(lines, ';; okuri-ari entries.')
+  if ari is# -1
+    return [s:Error.NIL, s:Error.new('no okuri-ari marker')]
+  endif
+  let nasi = index(lines, ';; okuri-nasi entries.', ari + 1)
+  if nasi is# -1
+    return [s:Error.NIL, s:Error.new('no okuri-nasi marker')]
+  endif
+  if self._sorted
+    let table = s:_new_sorted(self.name, self._path, self._sorted)
+  else
+    let table = s:_new_unsorted(self.name, self._path, self._sorted)
+  endif
+  let table._lines = lines
+  let table._ari_index = ari
+  let table._nasi_index = nasi
+  let table._lasttime = getftime(self._path)
+  return [table, s:Error.NIL]
+endfunction
+
+function! s:_new_sorted(name, path, sorted) abort
+  return {
+  \ '_path': a:path,
+  \
+  \ 'name': a:name,
+  \ 'get': function('s:_SKKDictTable_get'),
+  \ 'invalidated': function('s:_SKKDictTable_invalidated'),
+  \
+  \ 'get_index': function('s:_SKKSortedDictTable_get_index'),
+  \ 'search': function('s:_SKKSortedDictTable_search'),
+  \}
+endfunction
+
+function! s:_new_unsorted(name, path, sorted) abort
+  return {
+  \ '_path': a:path,
+  \
+  \ 'name': a:name,
+  \ 'get': function('s:_SKKDictTable_get'),
+  \ 'invalidated': function('s:_SKKDictTable_invalidated'),
+  \
+  \ 'get_index': function('s:_SKKUnsortedDictTable_get_index'),
+  \ 'search': function('s:_SKKUnsortedDictTable_search'),
+  \}
 endfunction
 
 
 function! s:_SKKSortedDictTable_get_index(key) abort dict
   if a:key is# ''
     return [[], -1, s:Table.ERROR.NO_RESULTS]
-  endif
-
-  " Re-read lines of dictionary if it is updated after last read
-  let err = self.reload()
-  if err isnot# s:Error.NIL
-    return [[], -1, err]
   endif
 
   let okuri = a:key =~# '^[^[:alpha:]]\+[[:alpha:]]$'
@@ -81,12 +110,6 @@ endfunction
 function! s:_SKKSortedDictTable_search(prefix, ...) abort dict
   if a:prefix is# ''
     return [[], s:Error.NIL]
-  endif
-
-  " Re-read lines of dictionary if it is updated after last read
-  let err = self.reload()
-  if err isnot# s:Error.NIL
-    return [s:Error.NIL, err]
   endif
 
   " If prefix has okuri, it must be one or no entry in SKK dictionary
@@ -148,12 +171,6 @@ function! s:_SKKUnsortedDictTable_get_index(key) abort dict
     return [[], -1, s:Table.ERROR.NO_RESULTS]
   endif
 
-  " Re-read lines of dictionary if it is updated after last read
-  let err = self.reload()
-  if err isnot# s:Error.NIL
-    return [[], -1, err]
-  endif
-
   let idx = s:_match_head(self._lines, a:key . ' ', 0, -1)
   if idx is# -1
     return [[], -1, s:Table.ERROR.NO_RESULTS]
@@ -164,12 +181,6 @@ endfunction
 function! s:_SKKUnsortedDictTable_search(prefix, ...) abort dict
   if a:prefix is# ''
     return [[], s:Error.NIL]
-  endif
-
-  " Re-read lines of dictionary if it is updated after last read
-  let err = self.reload()
-  if err isnot# s:Error.NIL
-    return [s:Error.NIL, err]
   endif
 
   " If prefix has okuri, it must be one or no entry in SKK dictionary
@@ -202,36 +213,16 @@ function! s:_SKKUnsortedDictTable_search(prefix, ...) abort dict
   return [entries, s:Error.NIL]
 endfunction
 
-function! s:_SKKDictTable_reload() abort dict
-  if self._lasttime >=# getftime(self._path)
-    return s:Error.NIL
-  endif
-  let lines = readfile(self._path)
-  let ari = index(lines, ';; okuri-ari entries.')
-  if ari is# -1
-    return s:Error.new('no okuri-ari marker')
-  endif
-  let nasi = index(lines, ';; okuri-nasi entries.', ari + 1)
-  if nasi is# -1
-    return s:Error.new('no okuri-nasi marker')
-  endif
-  if self._encoding ==? &l:encoding
-    let self._lines = lines
-  else
-    let self._lines = map(lines, 'iconv(v:val, self._encoding, &l:encoding)')
-  endif
-  let self._ari_index = ari
-  let self._nasi_index = nasi
-  let self._lasttime = getftime(self._path)
-  return s:Error.NIL
-endfunction
-
 function! s:_SKKDictTable_get(key) abort dict
   let [lines, idx, err] = self.get_index(a:key)
   if err isnot# s:Error.NIL || idx is# -1
     return [s:Error.NIL, err]
   endif
   return s:Entry.parse_line(lines[idx])
+endfunction
+
+function! s:_SKKDictTable_invalidated() abort
+  return self._lasttime <# getftime(self._path)
 endfunction
 
 
@@ -243,7 +234,39 @@ endfunction
 
 " If no sorted dictionaries found, this table is read-only.
 " (table.register() will always fail)
-function! s:new_multi(name, tables, reg_table) abort
+function! s:builder_multi(name, builders, reg_dict_index) abort
+  return {
+  \ 'name': a:name,
+  \ '_builders': a:builders,
+  \ '_reg_dict_index': a:reg_dict_index,
+  \ 'build': function('s:_MultiSKKDictTableBuilder_build'),
+  \}
+endfunction
+
+function! s:_MultiSKKDictTableBuilder_build() abort dict
+  if self._reg_dict_index <# 0
+    return [s:Error.NIL, s:Error.new('out of range: reg_dict_index must not be negative')]
+  endif
+  let tables = []
+  for builder in self._builders
+    let [table, err] = builder.build()
+    if err isnot# s:Error.NIL
+      return [s:Error.NIL, err]
+    endif
+    let tables += [table]
+  endfor
+  if self._reg_dict_index >=# len(tables)
+    let err = s:Error.new('out of range: reg_dict_index is ' .
+    \                     'greater than the number of tables')
+    return [s:Error.NIL, err]
+  endif
+  let multidict = s:_new_multi(self.name, tables, tables[self._reg_dict_index])
+  return [multidict, s:Error.NIL]
+endfunction
+
+" If no sorted dictionaries found, this table is read-only.
+" (table.register() will always fail)
+function! s:_new_multi(name, tables, reg_table) abort
   return {
   \ 'name': a:name,
   \ '_tables': a:tables,
@@ -302,12 +325,13 @@ function! s:_MultiSKKDictTable_register(key, word) abort dict
     return s:Error.new('word must not contain /: ' . string(a:key))
   endif
 
-  let err = self._reg_table.reload()
+  " Get the latest table to register a given word
+  let [skkdict, err] = nesk#get_instance().get_table(self._reg_table.name)
   if err isnot# s:Error.NIL
     return err
   endif
 
-  let [lines, idx, err] = self._reg_table.get_index(a:key)
+  let [lines, idx, err] = skkdict.get_index(a:key)
   if err isnot# s:Error.NIL && err isnot# s:Table.ERROR.NO_RESULTS
     return err
   endif
@@ -325,7 +349,11 @@ function! s:_MultiSKKDictTable_register(key, word) abort dict
     if err isnot# s:Error.NIL
       return err
     endif
-    call writefile([line], self._reg_table._path, 'a')
+    try
+      call writefile([line], skkdict._path, 'a')
+    catch
+      return s:Error.new(v:exception, v:throwpoint)
+    endtry
   else
     let [entry, err] = s:Entry.parse_line(lines[idx])
     let [entry, err] = s:Entry.add_candidate(entry, new_cand)
@@ -338,10 +366,14 @@ function! s:_MultiSKKDictTable_register(key, word) abort dict
     endif
     let lines = copy(lines)
     let lines[idx] = line
-    call writefile(lines, self._reg_table._path, '')
+    try
+      call writefile(lines, skkdict._path, '')
+    catch
+      return s:Error.new(v:exception, v:throwpoint)
+    endtry
   endif
 
-  return self._reg_table.reload()
+  return s:Error.NIL
 endfunction
 
 

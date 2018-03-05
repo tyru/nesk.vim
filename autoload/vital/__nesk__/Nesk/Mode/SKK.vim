@@ -32,6 +32,7 @@ endfunction
 " TODO: Global variable
 let s:SKKDICT_TABLES = {
 \ 'name': 'skkdict',
+\ 'reg_dict_index': 0,
 \ 'tables': [
 \   {
 \     'name': 'skkdict/user-dict',
@@ -200,23 +201,20 @@ function! s:define_table_func.kana() abort
     return err
   endif
   " Define skkdict table
-  let tables = []
+  let builders = []
   let reg_table = s:Error.NIL
   for t in s:SKKDICT_TABLES.tables
-    let table = s:V.import('Nesk.Table.SKKDict').new(t.name, t.path, t.sorted, t.encoding)
-    let err = nesk.define_table(table)
+    let builder = s:V.import('Nesk.Table.SKKDict').builder(t.name, t.path, t.sorted, t.encoding)
+    let err = nesk.define_table_builder(builder)
     if err isnot# s:Error.NIL
-      let err = s:Error.wrap(err, 'kana mode failed to register "' . table.name . '" table')
+      let err = s:Error.wrap(err, 'kana mode failed to register "' . builder.name . '" builder')
       return err
     endif
-    if t.sorted && empty(reg_table)
-      let reg_table = table
-    endif
-    let tables += [table]
+    let builders += [builder]
   endfor
   " If no sorted dictionaries found, this table is read-only
-  let table = s:V.import('Nesk.Table.SKKDict').new_multi(s:SKKDICT_TABLES.name, tables, reg_table)
-  let err = nesk.define_table(table)
+  let table = s:V.import('Nesk.Table.SKKDict').builder_multi(s:SKKDICT_TABLES.name, builders, s:SKKDICT_TABLES.reg_dict_index)
+  let err = nesk.define_table_builder(table)
   return s:Error.wrap(err, 'kana mode failed to register "' . table.name . '" table')
 endfunction
 

@@ -39,6 +39,7 @@ function! s:new() abort
   \ '_loaded_rtp': 0,
   \ '_states': {},
   \ '_modes': {},
+  \ '_table_builders': {},
   \ '_tables': {},
   \ '_active_mode_name': '',
   \ '_initial_mode': 'skk/kana',
@@ -279,12 +280,46 @@ endfunction
 
 function! s:_Nesk_get_table(name) abort dict
   let table = get(self._tables, a:name, s:Error.NIL)
-  if table is# s:Error.NIL
+  if table isnot# s:Error.NIL && (!has_key(table, 'invalidated') || !table.invalidated())
+    return [table, s:Error.NIL]
+  endif
+  " Try creating table from builder
+  let builder = get(self._table_builders, a:name, s:Error.NIL)
+  if builder is# s:Error.NIL
     return [s:Error.NIL, s:Error.new(printf('cannot load table "%s"', a:name))]
   endif
-  return [deepcopy(table), s:Error.NIL]
+  let [self._tables[a:name], err] = builder.build()
+  if err isnot# s:Error.NIL
+    let err = s:Error.wrap(err, 'failed to build ' . a:name . ' table from builder')
+    return [s:Error.NIL, err]
+  endif
+  return [self._tables[a:name], s:Error.NIL]
 endfunction
 let s:Nesk.get_table = function('s:_Nesk_get_table')
+
+function! s:_Nesk_define_table_builder(builder) abort dict
+  let err = s:_validate_table_builder(self, a:builder)
+  if err isnot# s:Error.NIL
+    return err
+  endif
+  let self._table_builders[a:builder.name] = a:builder
+  return s:Error.NIL
+endfunction
+let s:Nesk.define_table_builder = function('s:_Nesk_define_table_builder')
+
+function! s:_validate_table_builder(nesk, builder) abort
+  if type(a:builder) isnot# v:t_dict
+    return s:Error.new('builder is not Dictionary')
+  endif
+  " builder.name
+  if type(get(a:builder, 'name', 0)) isnot# v:t_string
+    return s:Error.new('builder.name is not String')
+  endif
+  if has_key(a:nesk._table_builders, a:builder.name)
+    return s:Error.new(printf('builder "%s" is already registered', a:builder.name))
+  endif
+  return s:Error.NIL
+endfunction
 
 function! s:_Nesk_define_table(table) abort dict
   let err = s:_validate_table(self, a:table)
@@ -292,7 +327,8 @@ function! s:_Nesk_define_table(table) abort dict
     return err
   endif
   let self._tables[a:table.name] = a:table
-  return s:Error.NIL
+  " Also define table builder
+  return self.define_table_builder(s:_default_builder(a:table))
 endfunction
 let s:Nesk.define_table = function('s:_Nesk_define_table')
 
@@ -302,12 +338,23 @@ function! s:_validate_table(nesk, table) abort
   endif
   " table.name
   if type(get(a:table, 'name', 0)) isnot# v:t_string
-    return s:Error.new('name is not String')
+    return s:Error.new('table.name is not String')
+  endif
+  " table.invalidated (optional)
+  if has_key(a:table, 'invalidated') && type(a:table.invalidated) isnot# v:t_func
+    return s:Error.new('table.invalidated is not Funcref')
   endif
   if has_key(a:nesk._tables, a:table.name)
     return s:Error.new(printf('table "%s" is already registered', a:table.name))
   endif
   return s:Error.NIL
+endfunction
+
+function! s:_default_builder(table) abort
+  return {
+  \ 'name': a:table.name,
+  \ 'build': {-> [a:table, s:Error.NIL]}
+  \}
 endfunction
 
 function! s:_Nesk_map_keys() abort dict
