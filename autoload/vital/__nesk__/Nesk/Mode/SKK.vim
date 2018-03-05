@@ -204,7 +204,9 @@ function! s:define_table_func.kana() abort
   let builders = []
   let reg_table = s:Error.NIL
   for t in s:SKKDICT_TABLES.tables
-    let builder = s:V.import('Nesk.Table.SKKDict').builder(t.name, t.path, t.sorted, t.encoding)
+    let builder = s:_new_lazy_import_builder(
+    \ t.name, 'Nesk.Table.SKKDict', 'builder', [t.name, t.path, t.sorted, t.encoding]
+    \)
     let err = nesk.define_table_builder(builder)
     if err isnot# s:Error.NIL
       let err = s:Error.wrap(err, 'kana mode failed to register "' . builder.name . '" builder')
@@ -213,9 +215,24 @@ function! s:define_table_func.kana() abort
     let builders += [builder]
   endfor
   " If no sorted dictionaries found, this table is read-only
-  let table = s:V.import('Nesk.Table.SKKDict').builder_multi(s:SKKDICT_TABLES.name, builders, s:SKKDICT_TABLES.reg_dict_index)
-  let err = nesk.define_table_builder(table)
+  let multidict = s:_new_lazy_import_builder(
+  \ s:SKKDICT_TABLES.name, 'Nesk.Table.SKKDict', 'builder_multi',
+  \ [s:SKKDICT_TABLES.name, builders, s:SKKDICT_TABLES.reg_dict_index]
+  \)
+  let err = nesk.define_table_builder(multidict)
   return s:Error.wrap(err, 'kana mode failed to register "' . table.name . '" table')
+endfunction
+
+function! s:_new_lazy_import_builder(name, module, method, args) abort
+  function! s:_lazy_build() abort closure
+    let module = s:V.import(a:module)
+    let builder = call(module[a:method], a:args, module)
+    return builder.build()
+  endfunction
+  return {
+  \ 'name': a:name,
+  \ 'build': funcref('s:_lazy_build'),
+  \}
 endfunction
 
 function! s:define_table_func.kata() abort
