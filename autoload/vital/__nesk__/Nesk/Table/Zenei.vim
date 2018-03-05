@@ -8,8 +8,8 @@ function! s:_vital_loaded(V) abort
   let s:V = a:V
 endfunction
 
-function! s:new() abort
-  return s:V.import('Nesk.Table.Hash').new('zenei', {
+function! s:new(name) abort
+  return s:V.import('Nesk.Table.Hash').new(a:name, {
   \ ' ': '　',
   \ '!': '！',
   \ '"': '”',

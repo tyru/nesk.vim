@@ -13,6 +13,8 @@ function! s:_vital_loaded(V) abort
   let s:MultiWriter = a:V.import('Nesk.MultiWriter')
   let s:SKKDict = a:V.import('Nesk.Table.SKKDict')
   let s:ERROR_NO_RESULTS = a:V.import('Nesk.Table').ERROR.NO_RESULTS
+
+  call s:_define_tables()
 endfunction
 
 function! s:_vital_depends() abort
@@ -68,7 +70,7 @@ endfunction
 
 " Set up kana mode: define tables, and change state to TableNormalState.
 function! s:_KanaState_next(in, out) abort
-  let [table, err] = s:_get_table_lazy('kana')
+  let [table, err] = nesk#get_instance().get_table('kana')
   if err isnot# s:Error.NIL
     return [s:Error.NIL, s:Error.wrap(err, 'Cannot load kana table')]
   endif
@@ -86,7 +88,7 @@ function! s:new_kata_mode() abort
 endfunction
 
 function! s:_KataState_next(in, out) abort
-  let [table, err] = s:_get_table_lazy('kata')
+  let [table, err] = nesk#get_instance().get_table('kata')
   if err isnot# s:Error.NIL
     return [s:Error.NIL, s:Error.wrap(err, 'Cannot load kata table')]
   endif
@@ -104,7 +106,7 @@ function! s:new_hankata_mode() abort
 endfunction
 
 function! s:_HankataState_next(in, out) abort
-  let [table, err] = s:_get_table_lazy('hankata')
+  let [table, err] = nesk#get_instance().get_table('hankata')
   if err isnot# s:Error.NIL
     return [s:Error.NIL, s:Error.wrap(err, 'Cannot load hankata table')]
   endif
@@ -145,7 +147,7 @@ function! s:new_zenei_mode() abort
 endfunction
 
 function! s:_ZeneiTable_next0(in, out) abort dict
-  let [table, err] = s:_get_table_lazy('zenei')
+  let [table, err] = nesk#get_instance().get_table('zenei')
   if err isnot# s:Error.NIL
     return [s:Error.NIL, s:Error.wrap(err, 'Cannot load zenei table')]
   endif
@@ -174,55 +176,64 @@ endfunction
 
 " Table registration {{{
 
-let s:loaded_table = {}
-let s:define_table_func = {}
-
-function! s:_define_table_lazy(table_name)
-  if !has_key(s:loaded_table, a:table_name)
-    if !has_key(s:define_table_func, a:table_name)
-      return s:Error.new('no table func for ' . a:table_name)
-    endif
-    let err = s:define_table_func[a:table_name]()
-    if err isnot# s:Error.NIL
-      return err
-    endif
-    let s:loaded_table[a:table_name] = 1
-  endif
-  return s:Error.NIL
+function! s:_new_kana_table_builder() abort
+  return s:_new_lazy_keymap_table_builder(
+  \ 'kana', 'Nesk.Table.Kana'
+  \)
 endfunction
 
-function! s:define_table_func.kana() abort
-  let nesk = nesk#get_instance()
-  " Define kana table
-  let table = s:V.import('Nesk.Table.Kana').new()
-  let err = nesk.define_table(table)
-  if err isnot# s:Error.NIL
-    let err = s:Error.wrap(err, 'kana mode failed to register "' . table.name . '" table')
-    return err
-  endif
-  " Define skkdict table
+function! s:_new_kata_table_builder() abort
+  return s:_new_lazy_keymap_table_builder(
+  \ 'kata', 'Nesk.Table.Kata'
+  \)
+endfunction
+
+function! s:_new_hankata_table_builder() abort
+  return s:_new_lazy_keymap_table_builder(
+  \ 'hankata', 'Nesk.Table.Hankata'
+  \)
+endfunction
+
+function! s:_new_zenei_table_builder() abort
+  return s:_new_lazy_keymap_table_builder(
+  \ 'zenei', 'Nesk.Table.Zenei'
+  \)
+endfunction
+
+function! s:_new_skkdict_table_builders() abort
   let builders = []
   let reg_table = s:Error.NIL
   for t in s:SKKDICT_TABLES.tables
     let builder = s:_new_lazy_import_builder(
-    \ t.name, 'Nesk.Table.SKKDict', 'builder', [t.name, t.path, t.sorted, t.encoding]
+    \ t.name, 'Nesk.Table.SKKDict',
+    \ 'builder', [t.name, t.path, t.sorted, t.encoding]
     \)
-    let err = nesk.define_table_builder(builder)
-    if err isnot# s:Error.NIL
-      let err = s:Error.wrap(err, 'kana mode failed to register "' . builder.name . '" builder')
-      return err
-    endif
     let builders += [builder]
   endfor
   " If no sorted dictionaries found, this table is read-only
   let multidict = s:_new_lazy_import_builder(
-  \ s:SKKDICT_TABLES.name, 'Nesk.Table.SKKDict', 'builder_multi',
-  \ [s:SKKDICT_TABLES.name, builders, s:SKKDICT_TABLES.reg_dict_index]
+  \ s:SKKDICT_TABLES.name, 'Nesk.Table.SKKDict',
+  \ 'builder_multi', [s:SKKDICT_TABLES.name, builders, s:SKKDICT_TABLES.reg_dict_index]
   \)
-  let err = nesk.define_table_builder(multidict)
-  return s:Error.wrap(err, 'kana mode failed to register "' . table.name . '" table')
+  " NOTE: Do not add multidict to builders!
+  " It causes infinite recursive call because
+  " multidict.build() calls each builder build()
+  return builders + [multidict]
 endfunction
 
+" Delay V.import() of table module
+function! s:_new_lazy_keymap_table_builder(name, module) abort
+  function! s:_lazy_build() abort closure
+    let table = s:V.import(a:module).new(a:name)
+    return [table, s:Error.NIL]
+  endfunction
+  return {
+  \ 'name': a:name,
+  \ 'build': funcref('s:_lazy_build'),
+  \}
+endfunction
+
+" Delay V.import() of table module
 function! s:_new_lazy_import_builder(name, module, method, args) abort
   function! s:_lazy_build() abort closure
     let module = s:V.import(a:module)
@@ -235,21 +246,21 @@ function! s:_new_lazy_import_builder(name, module, method, args) abort
   \}
 endfunction
 
-function! s:define_table_func.kata() abort
-  return nesk#get_instance().define_table(s:V.import('Nesk.Table.Kata').new())
-endfunction
-
-function! s:define_table_func.hankata() abort
-  return nesk#get_instance().define_table(s:V.import('Nesk.Table.Hankata').new())
-endfunction
-
-function! s:define_table_func.zenei() abort
-  return nesk#get_instance().define_table(s:V.import('Nesk.Table.Zenei').new())
-endfunction
-
-function! s:_get_table_lazy(table_name) abort
-  call s:_define_table_lazy(a:table_name)
-  return nesk#get_instance().get_table(a:table_name)
+" NOTE: This is called at s:_vital_loaded()
+function! s:_define_tables() abort
+  let nesk = nesk#get_instance()
+  for builder in
+  \ [s:_new_kana_table_builder()] +
+  \ [s:_new_kata_table_builder()] +
+  \ [s:_new_hankata_table_builder()] +
+  \ [s:_new_zenei_table_builder()] +
+  \ s:_new_skkdict_table_builders()
+    let err = nesk.define_table_builder(builder)
+    if err isnot# s:Error.NIL
+      " FIXME
+      throw string(err)
+    endif
+  endfor
 endfunction
 
 " }}}
@@ -400,7 +411,7 @@ function! s:_handle_normal_table_key(state, table_name, in, out) abort
     call a:in.unread()
     return a:state.next(s:StringReader.new("\<C-j>"), a:out)
   endif
-  let [table, err] = s:_get_table_lazy(a:table_name)
+  let [table, err] = nesk#get_instance().get_table(a:table_name)
   if err isnot# s:Error.NIL
     let err = s:Error.wrap(err, 'Cannot load ' . a:table_name . ' table')
     return [s:Error.NIL, err]
@@ -544,7 +555,7 @@ function! s:_TableBufferingState_next1(in, out) abort dict
     endwhile
     return [state, s:Error.NIL]
   elseif c is# ' '
-    let [dict_table, err] = s:_get_table_lazy(s:SKKDICT_TABLES.name)
+    let [dict_table, err] = nesk#get_instance().get_table(s:SKKDICT_TABLES.name)
     if err isnot# s:Error.NIL
       let err = s:Error.wrap(err, 'Cannot load ' . s:SKKDICT_TABLES.name . ' table')
       return [s:Error.NIL, err]
@@ -776,7 +787,7 @@ function! s:_RegisterDictState_next0(in, out) abort dict
   \ self._left_marker . self._right_marker . "\<Left>"
   \)
 
-  let [skkdict, err] = s:_get_table_lazy(s:SKKDICT_TABLES.name)
+  let [skkdict, err] = nesk#get_instance().get_table(s:SKKDICT_TABLES.name)
   if err isnot# s:Error.NIL
     let err = s:Error.wrap(err, 'Cannot load ' . s:SKKDICT_TABLES.name . ' table')
     return [self, err]
