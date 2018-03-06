@@ -54,8 +54,8 @@ function! nesk#enabled() abort
   return nesk#get_instance().enabled()
 endfunction
 
-function! nesk#rewrite(str) abort
-  let [str, err] = nesk#get_instance().rewrite(a:str)
+function! nesk#send(str) abort
+  let [str, err] = nesk#get_instance().send(a:str)
   if err is# s:Error.NIL
     return str
   endif
@@ -64,8 +64,8 @@ function! nesk#rewrite(str) abort
   return ''
 endfunction
 
-function! nesk#filter(str) abort
-  let [str, err] = nesk#get_instance().filter(a:str)
+function! nesk#convert(str) abort
+  let [str, err] = nesk#get_instance().convert(a:str)
   if err is# s:Error.NIL
     return str
   endif

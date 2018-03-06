@@ -366,7 +366,7 @@ endfunction
 function! s:_Nesk_map_keys() abort dict
   for lhs in s:get_default_mapped_keys()
     let lhs = substitute(lhs, '\V|', '<Bar>', 'g')
-    execute 'lnoremap <expr><nowait>' lhs 'nesk#rewrite(' . string(lhs) . ')'
+    execute 'lnoremap <expr><nowait>' lhs 'nesk#send(' . string(lhs) . ')'
   endfor
 endfunction
 let s:Nesk.map_keys = function('s:_Nesk_map_keys')
@@ -411,7 +411,7 @@ function! s:get_default_mapped_keys() abort
   return keys
 endfunction
 
-function! s:_Nesk_rewrite(str) abort dict
+function! s:_Nesk_send(str) abort dict
   let [states, err] = self.get_active_states()
   if err isnot# s:Error.NIL
     return ['', err]
@@ -433,18 +433,19 @@ function! s:_Nesk_rewrite(str) abort dict
   let [str, err2] = self.disable()
   return [str, s:Error.append(err, err2)]
 endfunction
-let s:Nesk.rewrite = function('s:_Nesk_rewrite')
+let s:Nesk.send = function('s:_Nesk_send')
 
-function! s:_Nesk_filter(str) abort dict
-  let [str, err] = self.rewrite(a:str)
+function! s:_Nesk_convert(str) abort dict
+  let [str, err] = self.send(a:str)
   if err isnot# s:Error.NIL
     return ['', err]
   endif
   let reader = s:V.import('Nesk.IO.VimBufferWriter').new()
   call reader.write(str)
+  " TODO: clear state
   return [reader.to_string(), s:Error.NIL]
 endfunction
-let s:Nesk.filter = function('s:_Nesk_filter')
+let s:Nesk.convert = function('s:_Nesk_convert')
 
 function! s:_Nesk_transit(state, in, out) abort dict
   try
@@ -535,7 +536,7 @@ function! s:new_disable_state() abort
 endfunction
 
 function! s:_DisableState_next(in, out) abort dict
-  " Read all string to stop nesk.rewrite() loop
+  " Read all string to stop nesk.send() loop
   call a:in.read(a:in.size())
   let nesk = nesk#get_instance()
   let [str, err] = nesk.disable()
@@ -553,7 +554,7 @@ endfunction
 
 let s:BLACK_HOLE_STATE = {}
 
-" Read all string from a:in to stop the nesk.rewrite()'s loop
+" Read all string from a:in to stop the nesk.send()'s loop
 function! s:_BlackHoleState_next(in, out) abort dict
   call a:in.read(a:in.size())
   return [self, s:Error.NIL]
