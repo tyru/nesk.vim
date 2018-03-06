@@ -65,12 +65,12 @@ function! s:new_kana_mode() abort
 endfunction
 
 " Set up kana mode: define tables, and change state to TableNormalState.
-function! s:_KanaState_next(in, out) abort
+function! s:_KanaState_next(in, out) abort dict
   let [table, err] = nesk#get_instance().get_table('kana')
   if err isnot# s:Error.NIL
     return [s:Error.NIL, s:Error.wrap(err, 'Cannot load kana table')]
   endif
-  return s:new_table_normal_state(table).next(a:in, a:out)
+  return s:new_table_normal_state(self.name, table).next(a:in, a:out)
 endfunction
 
 " }}}
@@ -81,12 +81,12 @@ function! s:new_kata_mode() abort
   return {'name': 'skk/kata', 'next': function('s:_KataState_next')}
 endfunction
 
-function! s:_KataState_next(in, out) abort
+function! s:_KataState_next(in, out) abort dict
   let [table, err] = nesk#get_instance().get_table('kata')
   if err isnot# s:Error.NIL
     return [s:Error.NIL, s:Error.wrap(err, 'Cannot load kata table')]
   endif
-  return s:new_table_normal_state(table).next(a:in, a:out)
+  return s:new_table_normal_state(self.name, table).next(a:in, a:out)
 endfunction
 
 " }}}
@@ -97,13 +97,13 @@ function! s:new_hankata_mode() abort
   return {'name': 'skk/hankata', 'next': function('s:_HankataState_next')}
 endfunction
 
-function! s:_HankataState_next(in, out) abort
+function! s:_HankataState_next(in, out) abort dict
   let [table, err] = nesk#get_instance().get_table('hankata')
   if err isnot# s:Error.NIL
     return [s:Error.NIL, s:Error.wrap(err, 'Cannot load hankata table')]
   endif
 
-  return s:new_table_normal_state(table).next(a:in, a:out)
+  return s:new_table_normal_state(self.name, table).next(a:in, a:out)
 endfunction
 
 " }}}
@@ -119,7 +119,7 @@ function! s:_AsciiState_next(in, out) abort dict
   if c is# "\<C-j>"
     " Change mode (must leave one character at least for ModeChangeState)
     call a:in.unread()
-    return [s:Nesk.new_mode_change_state('skk/kana'), s:Error.NIL]
+    return [s:Nesk.new_mode_change_state(self.name, 'skk/kana'), s:Error.NIL]
   else
     call a:out.write(c)
   endif
@@ -141,6 +141,7 @@ function! s:_ZeneiTable_next0(in, out) abort dict
   endif
   let next_state = {
   \ '_table': table,
+  \ 'name': self.name,
   \ 'next': function('s:_ZeneiTable_next1'),
   \}
   return next_state.next(a:in, a:out)
@@ -151,7 +152,7 @@ function! s:_ZeneiTable_next1(in, out) abort dict
   if c is# "\<C-j>"
     " Change mode (must leave one character at least for ModeChangeState)
     call a:in.unread()
-    return [s:Nesk.new_mode_change_state('skk/kana'), s:Error.NIL]
+    return [s:Nesk.new_mode_change_state(self.name, 'skk/kana'), s:Error.NIL]
   else
     let [str, err] = self._table.get(c)
     call a:out.write(err is# s:ERROR_NO_RESULTS ? c : str)
@@ -255,7 +256,7 @@ endfunction
 
 " Table Normal State (kana, kata, hankata) {{{
 
-function! s:new_table_normal_state(mode_table) abort
+function! s:new_table_normal_state(name, mode_table) abort
   " TODO: Global variable (mode names and table names)
   return {
   \ '_mode_table': a:mode_table,
@@ -264,8 +265,9 @@ function! s:new_table_normal_state(mode_table) abort
   \ '_zenei_mode_name': 'skk/zenei',
   \ '_kata_table_name': 'kata',
   \ '_hankata_table_name': 'hankata',
-  \ 'commit': function('s:_TableNormalState_commit'),
+  \ 'name': a:name,
   \ 'next': function('s:_TableNormalState_next'),
+  \ 'commit': function('s:_TableNormalState_commit'),
   \}
 endfunction
 
@@ -318,7 +320,7 @@ function! s:_TableNormalState_next(in, out) abort dict
       return [state, err]
     endif
     call a:out.write("\<Esc>")
-    return [s:Nesk.new_black_hole_state(), s:Error.NIL]
+    return [s:Nesk.new_black_hole_state(self.name), s:Error.NIL]
   elseif c is# "\<C-g>"
     if self._key isnot# ''
       let bs = repeat("\<C-h>", strchars(self._key))
@@ -331,14 +333,14 @@ function! s:_TableNormalState_next(in, out) abort dict
   elseif c is# 'L'
     return s:_handle_normal_mode_key(self, self._zenei_mode_name, a:in, a:out)
   elseif c is# 'q'
-    let name = self._mode_table.name is# 'kana' ? self._kata_table_name : 'kana'
-    return s:_handle_normal_table_key(self, name, a:in, a:out)
+    let mode = self.name is# 'skk/kana' ? s:new_kata_mode() : s:new_kana_mode()
+    return s:_handle_normal_table_key(self, mode, a:in, a:out)
   elseif c is# "\<C-q>"
-    let name = self._mode_table.name is# 'kana' ? self._hankata_table_name : 'kana'
-    return s:_handle_normal_table_key(self, name, a:in, a:out)
+    let mode = self.name is# 'skk/kana' ? s:new_hankata_mode() : s:new_kana_mode()
+    return s:_handle_normal_table_key(self, mode, a:in, a:out)
   elseif c is# 'Q'
     call a:in.unread()
-    let state = s:new_table_buffering_state(self._mode_table, s:BUFFERING_MARKER)
+    let state = s:new_table_buffering_state(self.name, self._mode_table, s:BUFFERING_MARKER)
     return [state, s:Error.NIL]
   elseif c =~# '^[A-Z]$'
     let in = s:StringReader.new('Q' . tolower(c))
@@ -389,23 +391,17 @@ function! s:_handle_normal_mode_key(state, mode_name, in, out) abort
   endif
   " Change mode (must leave one character at least for ModeChangeState)
   call a:in.unread()
-  let state = s:Nesk.new_mode_change_state(a:mode_name)
+  let state = s:Nesk.new_mode_change_state(a:state.name, a:mode_name)
   return [state, s:Error.NIL]
 endfunction
 
-function! s:_handle_normal_table_key(state, table_name, in, out) abort
+function! s:_handle_normal_table_key(state, mode, in, out) abort
   if a:state._key isnot# ''
     " Commit a:state._key and change table
     call a:in.unread()
     return a:state.next(s:StringReader.new("\<C-j>"), a:out)
   endif
-  let [table, err] = nesk#get_instance().get_table(a:table_name)
-  if err isnot# s:Error.NIL
-    let err = s:Error.wrap(err, 'Cannot load ' . a:table_name . ' table')
-    return [s:Error.NIL, err]
-  endif
-  let state = s:new_table_normal_state(table)
-  return [state, s:Error.NIL]
+  return [a:mode, s:Error.NIL]
 endfunction
 
 function! s:_TableNormalState_commit() abort dict
@@ -413,7 +409,7 @@ function! s:_TableNormalState_commit() abort dict
 endfunction
 
 
-function! s:new_table_buffering_state(mode_table, marker) abort
+function! s:new_table_buffering_state(name, mode_table, marker) abort
   " TODO: Global variable (mode names and table names)
   return {
   \ '_mode_table': a:mode_table,
@@ -425,8 +421,9 @@ function! s:new_table_buffering_state(mode_table, marker) abort
   \ '_kata_table_name': 'kata',
   \ '_hankata_table_name': 'hankata',
   \ '_buf': [],
-  \ 'commit': function('s:_TableBufferingState_commit'),
+  \ 'name': a:name,
   \ 'next': function('s:_TableBufferingState_next0'),
+  \ 'commit': function('s:_TableBufferingState_commit'),
   \}
 endfunction
 
@@ -501,7 +498,7 @@ function! s:_TableBufferingState_next1(in, out) abort dict
       return [state, err]
     endif
     call a:out.write("\<Esc>")
-    return [s:Nesk.new_black_hole_state(), s:Error.NIL]
+    return [s:Nesk.new_black_hole_state(self.name), s:Error.NIL]
   elseif c is# "\<C-g>"
     if !empty(self._buf)
       " Remove inserted string

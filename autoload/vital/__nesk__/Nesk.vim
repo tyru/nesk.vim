@@ -392,9 +392,12 @@ function! s:_is_table(table) abort
 endfunction
 
 
-function! s:new_mode_change_state(mode_name) abort
+" a:name is current mode name.
+" a:mode_name is the next mode name.
+function! s:new_mode_change_state(name, mode_name) abort
   return {
   \ '_mode_name': a:mode_name,
+  \ 'name': a:name,
   \ 'next': function('s:_ModeChangeState_next'),
   \}
 endfunction
@@ -407,18 +410,19 @@ function! s:_ModeChangeState_next(in, out) abort dict
   let err = nesk.set_active_mode_name(self._mode_name)
   if err isnot# s:Error.NIL
     let err = s:Error.wrap(err, 'Cannot set active mode to ' . self._mode_name)
-    return [s:Error.NIL, err]
+    return [self, err]
   endif
   let [mode, err] = nesk.get_active_mode()
   if err isnot# s:Error.NIL
     let err = s:Error.wrap(err, 'Cannot get active mode')
-    return [s:Error.NIL, err]
+    return [self, err]
   endif
   return [mode, s:Error.NIL]
 endfunction
 
-function! s:new_disable_state() abort
+function! s:new_disable_state(name) abort
   return {
+  \ 'name': a:name,
   \ 'next': function('s:_DisableState_next'),
   \}
 endfunction
@@ -433,21 +437,21 @@ function! s:_DisableState_next(in, out) abort dict
     return [s:Error.NIL, err]
   endif
   call a:out.write(str)
-  return [s:BLACK_HOLE_STATE, s:Error.NIL]
+  return [s:new_black_hole_state(self.name), s:Error.NIL]
 endfunction
 
-function! s:new_black_hole_state() abort
-  return s:BLACK_HOLE_STATE
+function! s:new_black_hole_state(name) abort
+  return {
+  \ 'name': a:name,
+  \ 'next': function('s:_BlackHoleState_next'),
+  \}
 endfunction
-
-let s:BLACK_HOLE_STATE = {}
 
 " Read all string from a:in to stop the nesk.send()'s loop
 function! s:_BlackHoleState_next(in, out) abort dict
   call a:in.read(a:in.size())
   return [self, s:Error.NIL]
 endfunction
-let s:BLACK_HOLE_STATE.next = function('s:_BlackHoleState_next')
 
 
 let &cpo = s:save_cpo
