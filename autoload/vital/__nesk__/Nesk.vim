@@ -5,15 +5,21 @@ set cpo&vim
 
 
 function! s:_vital_loaded(V) abort
+  let s:V = a:V
   let s:Error = a:V.import('Nesk.Error')
-  let s:StringReader = a:V.import('Nesk.StringReader')
-  let s:StringWriter = a:V.import('Nesk.StringWriter')
-  let s:VimBufferWriter = a:V.import('Nesk.VimBufferWriter')
+  let s:StringReader = a:V.import('Nesk.IO.StringReader')
+  let s:StringWriter = a:V.import('Nesk.IO.StringWriter')
   let s:Log = a:V.import('Nesk.Log')
 endfunction
 
 function! s:_vital_depends() abort
-  return ['Nesk.Error', 'Nesk.StringReader', 'Nesk.StringWriter', 'Nesk.VimBufferWriter', 'Nesk.Log']
+  return [
+  \ 'Nesk.Error',
+  \ 'Nesk.IO.StringReader',
+  \ 'Nesk.IO.StringWriter',
+  \ 'Nesk.IO.VimBufferWriter',
+  \ 'Nesk.Log',
+  \]
 endfunction
 
 
@@ -434,7 +440,7 @@ function! s:_Nesk_filter(str) abort dict
   if err isnot# s:Error.NIL
     return ['', err]
   endif
-  let reader = s:VimBufferWriter.new()
+  let reader = s:V.import('Nesk.IO.VimBufferWriter').new()
   call reader.write(str)
   return [reader.to_string(), s:Error.NIL]
 endfunction

@@ -9,7 +9,7 @@ function! s:_vital_loaded(V) abort
   let s:Nesk = a:V.import('Nesk')
   let s:Error = a:V.import('Nesk.Error')
   let s:ERROR_NO_RESULTS = a:V.import('Nesk.Table').ERROR.NO_RESULTS
-  let s:StringReader = a:V.import('Nesk.StringReader')
+  let s:StringReader = a:V.import('Nesk.IO.StringReader')
 
   call s:_define_tables()
 endfunction
@@ -18,9 +18,14 @@ function! s:_vital_depends() abort
   return [
   \ 'Nesk',
   \ 'Nesk.Error',
-  \ 'Nesk.StringReader',
+  \ 'Nesk.IO.StringReader',
+  \ 'Nesk.IO.MultiWriter',
+  \ 'Nesk.IO.VimBufferWriter',
   \ 'Nesk.Table',
   \ 'Nesk.Table.Kana',
+  \ 'Nesk.Table.Kata',
+  \ 'Nesk.Table.Hankata',
+  \ 'Nesk.Table.Zenei',
   \ 'Nesk.Table.SKKDict',
   \]
 endfunction
@@ -562,7 +567,7 @@ function! s:_TableBufferingState_next1(in, out) abort dict
     let bs = repeat("\<C-h>", strchars(inserted . self._key))
     call a:out.write(bs)
     let self._key = ''
-    let state = s:new_table_convert_state(dict_table, self, inserted, new_key, s:CONVERT_MARKER, self._mode_table)
+    let state = s:new_kanji_convert_state(dict_table, self, inserted, new_key, s:CONVERT_MARKER, self._mode_table)
     call a:in.unread()
     return state.next(a:in, a:out)
   else
@@ -658,7 +663,7 @@ function! s:_TableBufferingState_commit() abort dict
 endfunction
 
 
-function! s:new_table_convert_state(dict_table, prev_state, prev_inserted, key, marker, mode_table) abort
+function! s:new_kanji_convert_state(dict_table, prev_state, prev_inserted, key, marker, mode_table) abort
   return {
   \ '_dict_table': a:dict_table,
   \ '_prev_state': a:prev_state,
@@ -796,7 +801,7 @@ function! s:_RegisterDictState_next0(in, out) abort dict
   \ '_key': self._key,
   \ '_prev_state': self._prev_state,
   \ '_sub_state': s:new_kana_state(),
-  \ '_bw': s:V.import('Nesk.VimBufferWriter').new(),
+  \ '_bw': s:V.import('Nesk.IO.VimBufferWriter').new(),
   \ '_skkdict': skkdict,
   \ 'next': function('s:_RegisterDictState_next1'),
   \}
@@ -804,7 +809,7 @@ function! s:_RegisterDictState_next0(in, out) abort dict
 endfunction
 
 function! s:_RegisterDictState_next1(in, out) abort dict
-  let out = s:V.import('Nesk.MultiWriter').new([a:out, self._bw])
+  let out = s:V.import('Nesk.IO.MultiWriter').new([a:out, self._bw])
   while a:in.size() ># 0
     let [self._sub_state, err] = self._sub_state.next(a:in, out)
     if err isnot# s:Error.NIL

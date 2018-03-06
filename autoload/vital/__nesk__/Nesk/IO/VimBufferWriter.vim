@@ -5,12 +5,12 @@ set cpo&vim
 
 
 function! s:_vital_loaded(V) abort
-  let s:StringWriter = a:V.import('Nesk.StringWriter')
-  let s:StringReader = a:V.import('Nesk.StringReader')
+  let s:StringWriter = a:V.import('Nesk.IO.StringWriter')
+  let s:StringReader = a:V.import('Nesk.IO.StringReader')
 endfunction
 
 function! s:_vital_depends() abort
-  return ['Nesk.StringWriter', 'Nesk.StringReader']
+  return ['Nesk.IO.StringWriter', 'Nesk.IO.StringReader']
 endfunction
 
 
