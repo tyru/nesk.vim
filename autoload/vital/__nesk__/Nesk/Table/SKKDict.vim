@@ -65,6 +65,7 @@ function! s:_new_sorted(name, path, sorted) abort
   \ 'name': a:name,
   \ 'get': function('s:_SKKDictTable_get'),
   \ 'invalidated': function('s:_SKKDictTable_invalidated'),
+  \ 'get_lines': function('s:_SKKDictTable_get_lines'),
   \
   \ 'get_index': function('s:_SKKSortedDictTable_get_index'),
   \ 'search': function('s:_SKKSortedDictTable_search'),
@@ -78,6 +79,7 @@ function! s:_new_unsorted(name, path, sorted) abort
   \ 'name': a:name,
   \ 'get': function('s:_SKKDictTable_get'),
   \ 'invalidated': function('s:_SKKDictTable_invalidated'),
+  \ 'get_lines': function('s:_SKKDictTable_get_lines'),
   \
   \ 'get_index': function('s:_SKKUnsortedDictTable_get_index'),
   \ 'search': function('s:_SKKUnsortedDictTable_search'),
@@ -87,7 +89,7 @@ endfunction
 
 function! s:_SKKSortedDictTable_get_index(key) abort dict
   if a:key is# ''
-    return [[], -1, s:Table.ERROR.NO_RESULTS]
+    return [-1, s:Table.ERROR.NO_RESULTS]
   endif
 
   let okuri = a:key =~# '^[^[:alpha:]]\+[[:alpha:]]$'
@@ -102,9 +104,9 @@ function! s:_SKKSortedDictTable_get_index(key) abort dict
   let [min, max] = s:_bin_search(self._lines, a:key, okuri, 100, min, max)
   let idx = s:_match_head(self._lines, a:key . ' ', min, max)
   if idx is# -1
-    return [[], -1, s:Table.ERROR.NO_RESULTS]
+    return [-1, s:Table.ERROR.NO_RESULTS]
   endif
-  return [self._lines, idx, s:Error.NIL]
+  return [idx, s:Error.NIL]
 endfunction
 
 function! s:_SKKSortedDictTable_search(prefix, ...) abort dict
@@ -168,14 +170,14 @@ endfunction
 
 function! s:_SKKUnsortedDictTable_get_index(key) abort dict
   if a:key is# ''
-    return [[], -1, s:Table.ERROR.NO_RESULTS]
+    return [-1, s:Table.ERROR.NO_RESULTS]
   endif
 
   let idx = s:_match_head(self._lines, a:key . ' ', 0, -1)
   if idx is# -1
-    return [[], -1, s:Table.ERROR.NO_RESULTS]
+    return [-1, s:Table.ERROR.NO_RESULTS]
   endif
-  return [self._lines, idx, s:Error.NIL]
+  return [idx, s:Error.NIL]
 endfunction
 
 function! s:_SKKUnsortedDictTable_search(prefix, ...) abort dict
@@ -214,15 +216,20 @@ function! s:_SKKUnsortedDictTable_search(prefix, ...) abort dict
 endfunction
 
 function! s:_SKKDictTable_get(key) abort dict
-  let [lines, idx, err] = self.get_index(a:key)
+  let [idx, err] = self.get_index(a:key)
   if err isnot# s:Error.NIL || idx is# -1
     return [s:Error.NIL, err]
   endif
+  let lines = self.get_lines()
   return s:Entry.parse_line(lines[idx])
 endfunction
 
-function! s:_SKKDictTable_invalidated() abort
+function! s:_SKKDictTable_invalidated() abort dict
   return self._lasttime <# getftime(self._path)
+endfunction
+
+function! s:_SKKDictTable_get_lines() abort dict
+  return self._lines
 endfunction
 
 
@@ -331,7 +338,7 @@ function! s:_MultiSKKDictTable_register(key, word) abort dict
     return err
   endif
 
-  let [lines, idx, err] = skkdict.get_index(a:key)
+  let [idx, err] = skkdict.get_index(a:key)
   if err isnot# s:Error.NIL && err isnot# s:Table.ERROR.NO_RESULTS
     return err
   endif
@@ -355,6 +362,7 @@ function! s:_MultiSKKDictTable_register(key, word) abort dict
       return s:Error.new(v:exception, v:throwpoint)
     endtry
   else
+    let lines = skkdict.get_lines()
     let [entry, err] = s:Entry.parse_line(lines[idx])
     let [entry, err] = s:Entry.add_candidate(entry, new_cand)
     if err isnot# s:Error.NIL
