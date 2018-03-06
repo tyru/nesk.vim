@@ -257,14 +257,9 @@ endfunction
 " Table Normal State (kana, kata, hankata) {{{
 
 function! s:new_table_normal_state(name, mode_table) abort
-  " TODO: Global variable (mode names and table names)
   return {
   \ '_mode_table': a:mode_table,
   \ '_key': '',
-  \ '_ascii_mode_name': 'skk/ascii',
-  \ '_zenei_mode_name': 'skk/zenei',
-  \ '_kata_table_name': 'kata',
-  \ '_hankata_table_name': 'hankata',
   \ 'name': a:name,
   \ 'next': function('s:_TableNormalState_next'),
   \ 'commit': function('s:_TableNormalState_commit'),
@@ -329,9 +324,9 @@ function! s:_TableNormalState_next(in, out) abort dict
     endif
     return [self, s:Error.NIL]
   elseif c is# 'l'
-    return s:_handle_normal_mode_key(self, self._ascii_mode_name, a:in, a:out)
+    return s:_handle_normal_mode_key(self, 'skk/ascii', a:in, a:out)
   elseif c is# 'L'
-    return s:_handle_normal_mode_key(self, self._zenei_mode_name, a:in, a:out)
+    return s:_handle_normal_mode_key(self, 'skk/zenei', a:in, a:out)
   elseif c is# 'q'
     let mode = self.name is# 'skk/kana' ? s:new_kata_mode() : s:new_kana_mode()
     return s:_handle_normal_table_key(self, mode, a:in, a:out)
@@ -410,16 +405,11 @@ endfunction
 
 
 function! s:new_table_buffering_state(name, mode_table, marker) abort
-  " TODO: Global variable (mode names and table names)
   return {
   \ '_mode_table': a:mode_table,
   \ '_marker': a:marker,
   \ '_key': '',
   \ '_converted_key': [],
-  \ '_ascii_mode_name': 'skk/ascii',
-  \ '_zenei_mode_name': 'skk/zenei',
-  \ '_kata_table_name': 'kata',
-  \ '_hankata_table_name': 'hankata',
   \ '_buf': [],
   \ 'name': a:name,
   \ 'next': function('s:_TableBufferingState_next0'),
