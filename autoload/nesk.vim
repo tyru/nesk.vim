@@ -20,19 +20,35 @@ function! s:init(V) abort
   " TODO: Global variable
   let s:KEEP_STATE = 1
   let s:MAP_KEYS = nesk#get_default_mapped_keys()
+
+  let s:loaded_rtp = 0
 endfunction
 
 
 function! nesk#get_instance() abort
-  if s:INSTANCE is# s:Error.NIL
-    let s:INSTANCE = s:Nesk.new()
+  if s:INSTANCE isnot# s:Error.NIL
+    return s:INSTANCE
   endif
+  let s:INSTANCE = s:Nesk.new()
   return s:INSTANCE
 endfunction
 
+function! nesk#new() abort
+  return s:Nesk.new()
+endfunction
+
 function! nesk#enable() abort
-  if !nesk#get_instance().enabled()
-    let err = nesk#get_instance().enable()
+  let nesk = nesk#get_instance()
+  if !nesk.enabled()
+    if !s:loaded_rtp
+      let err = nesk.load_modes_in_rtp()
+      if err isnot# s:Error.NIL
+        call s:echomsg('ErrorMsg', err.exception . ' at ' . err.throwpoint)
+        return
+      endif
+      let s:loaded_rtp = 1
+    endif
+    let err = nesk.enable()
     if err isnot# s:Error.NIL
       call s:echomsg('ErrorMsg', err.exception . ' at ' . err.throwpoint)
       sleep 2
@@ -105,7 +121,16 @@ function! nesk#send(str) abort
     \ 'Please run ":call nesk#enable()" before calling nesk#send()')
     return ''
   endif
-  let [str, err] = nesk#get_instance().send(a:str)
+  let nesk = nesk#get_instance()
+  if !s:loaded_rtp
+    let err = nesk.load_modes_in_rtp()
+    if err isnot# s:Error.NIL
+      call s:echomsg('ErrorMsg', err.exception . ' at ' . err.throwpoint)
+      return
+    endif
+    let s:loaded_rtp = 1
+  endif
+  let [str, err] = nesk.send(a:str)
   if err is# s:Error.NIL
     return str
   endif
@@ -116,19 +141,26 @@ function! nesk#send(str) abort
 endfunction
 
 function! nesk#convert(str) abort
-  if !nesk#enabled()
-    call s:echomsg('ErrorMsg',
-    \ 'Please run ":call nesk#enable()" before calling nesk#convert()')
+  let nesk = nesk#new()
+  if !s:loaded_rtp
+    let err = nesk.load_modes_in_rtp()
+    if err isnot# s:Error.NIL
+      call s:echomsg('ErrorMsg', err.exception . ' at ' . err.throwpoint)
+      return
+    endif
+    let s:loaded_rtp = 1
+  endif
+  let err = nesk.enable()
+  if err isnot# s:Error.NIL
+    call s:echomsg('ErrorMsg', err.exception . ' at ' . err.throwpoint)
     return ''
   endif
-  let [str, err] = nesk#get_instance().convert(a:str)
-  if err is# s:Error.NIL
-    return str
+  let [str, err] = nesk.convert(a:str)
+  if err isnot# s:Error.NIL
+    call s:echomsg('ErrorMsg', err.exception . ' at ' . err.throwpoint)
+    return ''
   endif
-  call s:disable()
-  call s:echomsg('ErrorMsg', err.exception . ' at ' . err.throwpoint)
-  sleep 2
-  return ''
+  return str
 endfunction
 
 function! nesk#define_mode(mode) abort

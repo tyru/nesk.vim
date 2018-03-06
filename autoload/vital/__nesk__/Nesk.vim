@@ -4,6 +4,16 @@ let s:save_cpo = &cpo
 set cpo&vim
 
 
+if exists('*NeskGetSourcedModes')
+  let s:SOURCED_MODES = NeskGetSourcedModes()
+else
+  let s:SOURCED_MODES = {}
+endif
+
+function! NeskGetSourcedModes() abort
+  return get(s:, 'SOURCED_MODES', {})
+endfunction
+
 function! s:_vital_loaded(V) abort
   let s:V = a:V
   let s:Error = a:V.import('Nesk.Error')
@@ -42,7 +52,7 @@ function! s:new() abort
     let logger = s:Log.new({'output': 'Nop'})
   endif
   let nesk = extend(deepcopy(s:Nesk), {
-  \ '_loaded_rtp': 0,
+  \ '__type__': 'Nesk',
   \ '_active_mode_name': '',
   \ '_initial_mode': 'skk/kana',
   \ '_modes': {},
@@ -61,7 +71,9 @@ function! s:_Nesk_enable() abort dict
   if self.enabled()
     return s:Error.new('already enabled')
   endif
-  call self.load_modes_in_rtp()
+  if empty(s:SOURCED_MODES)
+    return s:Error.new('no modes placed at autoload/nesk/mode/*.vim in runtimepath')
+  endif
   let mode_name = self._initial_mode
   let [mode, err] = self.get_mode(mode_name)
   if err isnot# s:Error.NIL
@@ -104,11 +116,18 @@ endfunction
 let s:Nesk.enabled = function('s:_Nesk_enabled')
 
 function! s:_Nesk_load_modes_in_rtp() abort dict
-  if self._loaded_rtp
-    return
-  endif
-  runtime! autoload/nesk/mode/*.vim
-  let self._loaded_rtp = 1
+  for file in globpath(&rtp, 'autoload/nesk/mode/*.vim', 1, 1)
+    let name = matchstr(tr(file, '\', '/'), 'autoload/nesk/mode/\zs.*\ze.vim')
+    if !has_key(s:SOURCED_MODES, name)
+      source `=file`
+      let err = nesk#mode#{name}#load(self)
+      if err isnot# s:Error.NIL
+        return s:Error.wrap(err, 'failed to load script ' . file)
+      endif
+      let s:SOURCED_MODES[name] = 1
+    endif
+  endfor
+  return s:Error.NIL
 endfunction
 let s:Nesk.load_modes_in_rtp = function('s:_Nesk_load_modes_in_rtp')
 
@@ -327,14 +346,24 @@ endfunction
 let s:Nesk.send = function('s:_Nesk_send')
 
 function! s:_Nesk_convert(str) abort dict
-  let [str, err] = self.send(a:str)
+  let [state, err] = self.get_active_mode()
   if err isnot# s:Error.NIL
     return ['', err]
   endif
-  let reader = s:V.import('Nesk.IO.VimBufferWriter').new()
-  call reader.write(str)
-  " TODO: clear state
-  return [reader.to_string(), s:Error.NIL]
+  let in = s:StringReader.new(a:str)
+  let out = s:V.import('Nesk.IO.VimBufferWriter').new()
+  try
+    let [state, err] = self.transit(state, in, out)
+    if err is# s:Error.NIL
+      return [out.to_string(), s:Error.NIL]
+    endif
+  catch
+    let ex = type(v:exception) is# v:t_string ? v:exception : string(v:exception)
+    let err = s:Error.new(ex, v:throwpoint)
+  endtry
+  " Error
+  let [str, err2] = self.disable()
+  return [str, s:Error.append(err, err2)]
 endfunction
 let s:Nesk.convert = function('s:_Nesk_convert')
 
@@ -370,7 +399,12 @@ endfunction
 function! s:_state_string(obj, ...) abort
   let level = a:0 ? a:1 : 0
   if type(a:obj) is# v:t_dict
-    if s:_is_table(a:obj)
+    if get(a:obj, '__type__', '') is# 'Nesk'
+      return '<nesk object>'
+    endif
+    if type(get(a:obj, 'name', 0)) is# v:t_string &&
+    \   type(get(a:obj, 'get', 0)) is# v:t_func &&
+    \   type(get(a:obj, 'search', 0)) is# v:t_func
       return '<table "' . a:obj.name . '">'
     endif
     let list = map(items(a:obj), {_,v -> string(v[0]) . ': ' . s:_state_string(v[1], level + 1)})
@@ -385,13 +419,6 @@ function! s:_state_string(obj, ...) abort
   else
     return string(a:obj)
   endif
-endfunction
-
-function! s:_is_table(table) abort
-  return type(a:table) is# v:t_dict &&
-  \      type(get(a:table, 'name', 0)) is# v:t_string &&
-  \      type(get(a:table, 'get', 0)) is# v:t_func &&
-  \      type(get(a:table, 'search', 0)) is# v:t_func
 endfunction
 
 
