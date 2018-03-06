@@ -39,7 +39,7 @@ endfunction
 
 function! nesk#enable() abort
   let nesk = nesk#get_instance()
-  if !nesk.enabled()
+  if !nesk.is_enabled()
     if !s:loaded_rtp
       let err = nesk.load_modes_in_rtp()
       if err isnot# s:Error.NIL
@@ -87,7 +87,7 @@ function! nesk#disable() abort
   call s:disable()
   redrawstatus
 
-  if nesk#get_instance().enabled()
+  if nesk#get_instance().is_enabled()
     let [str, err] = nesk#get_instance().disable()
     if err isnot# s:Error.NIL
       call s:echomsg('ErrorMsg', err.exception . ' at ' . err.throwpoint)
@@ -108,15 +108,15 @@ function! s:disable() abort
 endfunction
 
 function! nesk#toggle() abort
-  return nesk#enabled() ? nesk#disable() : nesk#enable()
+  return nesk#is_enabled() ? nesk#disable() : nesk#enable()
 endfunction
 
-function! nesk#enabled() abort
-  return &iminsert isnot# 0 && nesk#get_instance().enabled()
+function! nesk#is_enabled() abort
+  return &iminsert isnot# 0 && nesk#get_instance().is_enabled()
 endfunction
 
 function! nesk#send(str) abort
-  if !nesk#enabled()
+  if !nesk#is_enabled()
     call s:echomsg('ErrorMsg',
     \ 'Please run ":call nesk#enable()" before calling nesk#send()')
     return ''

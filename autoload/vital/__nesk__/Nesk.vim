@@ -68,7 +68,7 @@ endfunction
 let s:Nesk = {}
 
 function! s:_Nesk_enable() abort dict
-  if self.enabled()
+  if self.is_enabled()
     return s:Error.new('already enabled')
   endif
   if empty(s:SOURCED_MODES)
@@ -88,7 +88,7 @@ endfunction
 let s:Nesk.enable = function('s:_Nesk_enable')
 
 function! s:_Nesk_disable() abort dict
-  if !self.enabled()
+  if !self.is_enabled()
     return ['', s:Error.NIL]
   endif
   let committed = ''
@@ -106,14 +106,14 @@ endfunction
 let s:Nesk.disable = function('s:_Nesk_disable')
 
 function! s:_Nesk_toggle() abort dict
-  return self.enabled() ? self.disable() : self.enable()
+  return self.is_enabled() ? self.disable() : self.enable()
 endfunction
 let s:Nesk.toggle = function('s:_Nesk_toggle')
 
-function! s:_Nesk_enabled() abort dict
+function! s:_Nesk_is_enabled() abort dict
   return self.get_active_mode_name()[1] is# s:Error.NIL
 endfunction
-let s:Nesk.enabled = function('s:_Nesk_enabled')
+let s:Nesk.is_enabled = function('s:_Nesk_is_enabled')
 
 function! s:_Nesk_load_modes_in_rtp() abort dict
   for file in globpath(&rtp, 'autoload/nesk/mode/*.vim', 1, 1)
@@ -132,7 +132,7 @@ endfunction
 let s:Nesk.load_modes_in_rtp = function('s:_Nesk_load_modes_in_rtp')
 
 function! s:_Nesk_init_active_mode() abort dict
-  if !self.enabled()
+  if !self.is_enabled()
     return s:Error.new('mode is disabled')
   endif
   let [mode_name, err] = self.get_active_mode_name()
