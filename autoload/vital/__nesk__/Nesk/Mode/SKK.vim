@@ -8,11 +8,8 @@ function! s:_vital_loaded(V) abort
   let s:V = a:V
   let s:Nesk = a:V.import('Nesk')
   let s:Error = a:V.import('Nesk.Error')
-  let s:StringReader = a:V.import('Nesk.StringReader')
-  let s:VimBufferWriter = a:V.import('Nesk.VimBufferWriter')
-  let s:MultiWriter = a:V.import('Nesk.MultiWriter')
-  let s:SKKDict = a:V.import('Nesk.Table.SKKDict')
   let s:ERROR_NO_RESULTS = a:V.import('Nesk.Table').ERROR.NO_RESULTS
+  let s:StringReader = a:V.import('Nesk.StringReader')
 
   call s:_define_tables()
 endfunction
@@ -679,11 +676,12 @@ function! s:_TableConvertState_next0(in, out) abort dict
   if err isnot# s:Error.NIL
     return [self, err]
   endif
-  let candidates = s:SKKDict.Entry.get_candidates(entry)
+  let SKKDict = s:V.import('Nesk.Table.SKKDict')
+  let candidates = SKKDict.Entry.get_candidates(entry)
   if empty(candidates)
     return [self, s:Error.new('candidates of ' . string(self._key) . ' are empty')]
   endif
-  call a:out.write(self._marker . s:SKKDict.EntryCandidate.get_string(candidates[0]))
+  call a:out.write(self._marker . SKKDict.EntryCandidate.get_string(candidates[0]))
   let state = {
   \ '_dict_table': self._dict_table,
   \ '_prev_state': self._prev_state,
@@ -700,9 +698,10 @@ endfunction
 
 function! s:_TableConvertState_next1(in, out) abort dict
   let c = a:in.read_char()
+  let EntryCandidate = s:V.import('Nesk.Table.SKKDict').EntryCandidate
   if c is# "\<C-j>"
     " Remove marker
-    let cand = s:SKKDict.EntryCandidate.get_string(self._candidates[self._cand_idx])
+    let cand = EntryCandidate.get_string(self._candidates[self._cand_idx])
     let bs = repeat("\<C-h>", strchars(self._marker . cand))
     call a:out.write(bs . cand)
     " Back to TableNormalState
@@ -723,7 +722,7 @@ function! s:_TableConvertState_next1(in, out) abort dict
   elseif c is# ' '
     if self._cand_idx >=# len(self._candidates) - 1
       " Remove marker
-      let cand = s:SKKDict.EntryCandidate.get_string(self._candidates[self._cand_idx])
+      let cand = EntryCandidate.get_string(self._candidates[self._cand_idx])
       let bs = repeat("\<C-h>", strchars(self._marker . cand))
       call a:out.write(bs . cand)
       " Change to register state
@@ -738,7 +737,7 @@ function! s:_TableConvertState_next1(in, out) abort dict
       return state.next(a:in, a:out)
     endif
     let self._cand_idx += 1
-    let cand = s:SKKDict.EntryCandidate.get_string(self._candidates[self._cand_idx])
+    let cand = EntryCandidate.get_string(self._candidates[self._cand_idx])
     let bs = repeat("\<C-h>", strchars(self._marker . cand))
     call a:out.write(bs . self._marker . cand)
     return [self, s:Error.NIL]
@@ -747,7 +746,7 @@ function! s:_TableConvertState_next1(in, out) abort dict
       return s:_restore_prev_state(self, a:out)
     endif
     let self._cand_idx -= 1
-    let cand = s:SKKDict.EntryCandidate.get_string(self._candidates[self._cand_idx])
+    let cand = EntryCandidate.get_string(self._candidates[self._cand_idx])
     let bs = repeat("\<C-h>", strchars(self._marker . cand))
     call a:out.write(bs . self._marker . cand)
     return [self, s:Error.NIL]
@@ -761,7 +760,8 @@ endfunction
 
 function! s:_restore_prev_state(state, out) abort
   " Remove marker
-  let cand = s:SKKDict.EntryCandidate.get_string(a:state._candidates[a:state._cand_idx])
+  let EntryCandidate = s:V.import('Nesk.Table.SKKDict').EntryCandidate
+  let cand = EntryCandidate.get_string(a:state._candidates[a:state._cand_idx])
   let bs = repeat("\<C-h>", strchars(a:state._marker . cand))
   call a:out.write(bs . a:state._prev_inserted)
   return [a:state._prev_state, s:Error.NIL]
@@ -796,7 +796,7 @@ function! s:_RegisterDictState_next0(in, out) abort dict
   \ '_key': self._key,
   \ '_prev_state': self._prev_state,
   \ '_sub_state': s:new_kana_state(),
-  \ '_bw': s:VimBufferWriter.new(),
+  \ '_bw': s:V.import('Nesk.VimBufferWriter').new(),
   \ '_skkdict': skkdict,
   \ 'next': function('s:_RegisterDictState_next1'),
   \}
@@ -804,7 +804,7 @@ function! s:_RegisterDictState_next0(in, out) abort dict
 endfunction
 
 function! s:_RegisterDictState_next1(in, out) abort dict
-  let out = s:MultiWriter.new([a:out, self._bw])
+  let out = s:V.import('Nesk.MultiWriter').new([a:out, self._bw])
   while a:in.size() ># 0
     let [self._sub_state, err] = self._sub_state.next(a:in, out)
     if err isnot# s:Error.NIL
