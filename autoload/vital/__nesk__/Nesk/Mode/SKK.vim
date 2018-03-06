@@ -30,7 +30,6 @@ function! s:_vital_depends() abort
   \]
 endfunction
 
-
 " 'kana' mode {{{
 
 " TODO: Global variable
@@ -52,7 +51,7 @@ let s:SKKDICT_TABLES = {
 \   }
 \ ]
 \}
-let s:BUFFERING_MARKER = "▽"
+let s:PREEDITING_MARKER = "▽"
 let s:OKURI_MARKER = "▼"
 let s:CONVERT_MARKER = "▼"
 let s:REGDICT_HEAD_MARKER = "▼"
@@ -68,7 +67,8 @@ endfunction
 function! s:_KanaState_next(in, out) abort dict
   let [table, err] = nesk#get_instance().get_table('kana')
   if err isnot# s:Error.NIL
-    return [s:Error.NIL, s:Error.wrap(err, 'Cannot load kana table')]
+    let err = s:Error.wrap(err, 'Cannot load kana table')
+    return s:_error(self, err)
   endif
   return s:new_table_normal_state(self.name, table).next(a:in, a:out)
 endfunction
@@ -84,7 +84,8 @@ endfunction
 function! s:_KataState_next(in, out) abort dict
   let [table, err] = nesk#get_instance().get_table('kata')
   if err isnot# s:Error.NIL
-    return [s:Error.NIL, s:Error.wrap(err, 'Cannot load kata table')]
+    let err = s:Error.wrap(err, 'Cannot load kata table')
+    return s:_error(self, err)
   endif
   return s:new_table_normal_state(self.name, table).next(a:in, a:out)
 endfunction
@@ -100,7 +101,8 @@ endfunction
 function! s:_HankataState_next(in, out) abort dict
   let [table, err] = nesk#get_instance().get_table('hankata')
   if err isnot# s:Error.NIL
-    return [s:Error.NIL, s:Error.wrap(err, 'Cannot load hankata table')]
+    let err = s:Error.wrap(err, 'Cannot load hankata table')
+    return s:_error(self, err)
   endif
 
   return s:new_table_normal_state(self.name, table).next(a:in, a:out)
@@ -137,7 +139,8 @@ endfunction
 function! s:_ZeneiTable_next0(in, out) abort dict
   let [table, err] = nesk#get_instance().get_table('zenei')
   if err isnot# s:Error.NIL
-    return [s:Error.NIL, s:Error.wrap(err, 'Cannot load zenei table')]
+    let err = s:Error.wrap(err, 'Cannot load zenei table')
+    return s:_error(self, err)
   endif
   let next_state = {
   \ '_table': table,
@@ -155,7 +158,12 @@ function! s:_ZeneiTable_next1(in, out) abort dict
     return [s:Nesk.new_mode_change_state(self.name, 'skk/kana'), s:Error.NIL]
   else
     let [str, err] = self._table.get(c)
-    call a:out.write(err is# s:ERROR_NO_RESULTS ? c : str)
+    if err is# s:ERROR_NO_RESULTS
+      let str = c
+    elseif err isnot# s:Error.NIL
+      return s:_error(self, err)
+    endif
+    call a:out.write(str)
   endif
   return [self, s:Error.NIL]
 endfunction
@@ -246,7 +254,7 @@ function! s:_define_tables() abort
   \ s:_new_skkdict_table_builders()
     let err = nesk.define_table_builder(builder)
     if err isnot# s:Error.NIL
-      " FIXME
+      " this must not be occurred
       throw string(err)
     endif
   endfor
@@ -260,7 +268,8 @@ function! s:new_table_normal_state(name, mode_table) abort
   return {
   \ '_mode_table': a:mode_table,
   \ '_key': '',
-  \ 'name': a:name,
+  \ '_simple_name': a:name,
+  \ 'name': a:name . '/normal',
   \ 'next': function('s:_TableNormalState_next'),
   \ 'commit': function('s:_TableNormalState_commit'),
   \}
@@ -279,8 +288,10 @@ function! s:_TableNormalState_next(in, out) abort dict
     let bs = repeat("\<C-h>", strchars(self._key))
     call a:out.write(bs)
     let [pair, err] = self._mode_table.get(self._key)
-    if err isnot# s:ERROR_NO_RESULTS
+    if err is# s:Error.NIL
       call a:out.write(pair[0])
+    elseif err isnot# s:ERROR_NO_RESULTS
+      return s:_error(self, err)
     endif
     let self._key = ''
     return [self, s:Error.NIL]
@@ -288,7 +299,7 @@ function! s:_TableNormalState_next(in, out) abort dict
     let in = s:StringReader.new("\<C-j>")
     let [state, err] = self.next(in, a:out)
     if err isnot# s:Error.NIL
-      return [state, err]
+      return s:_error(state, err)
     endif
     call a:out.write("\<CR>")
     return [self, s:Error.NIL]
@@ -312,7 +323,7 @@ function! s:_TableNormalState_next(in, out) abort dict
     let in = s:StringReader.new("\<C-j>")
     let [state, err] = self.next(in, a:out)
     if err isnot# s:Error.NIL
-      return [state, err]
+      return s:_error(state, err)
     endif
     call a:out.write("\<Esc>")
     return [s:Nesk.new_black_hole_state(self.name), s:Error.NIL]
@@ -335,7 +346,9 @@ function! s:_TableNormalState_next(in, out) abort dict
     return s:_handle_normal_table_key(self, mode, a:in, a:out)
   elseif c is# 'Q'
     call a:in.unread()
-    let state = s:new_table_buffering_state(self.name, self._mode_table, s:BUFFERING_MARKER)
+    let state = s:new_table_preediting_state(
+    \ self.name, self._mode_table, s:PREEDITING_MARKER
+    \)
     return [state, s:Error.NIL]
   elseif c =~# '^[A-Z]$'
     let in = s:StringReader.new('Q' . tolower(c))
@@ -343,7 +356,7 @@ function! s:_TableNormalState_next(in, out) abort dict
     while in.size() ># 0
       let [state, err] = state.next(in, a:out)
       if err isnot# s:Error.NIL
-        return [state, err]
+        return s:_error(state, err)
       endif
     endwhile
     return [state, s:Error.NIL]
@@ -351,7 +364,8 @@ function! s:_TableNormalState_next(in, out) abort dict
     let [cands, err] = self._mode_table.search(self._key . c)
     if err isnot# s:Error.NIL
       " This must not be occurred in this table object
-      return [s:Error.NIL, s:Error.wrap(err, 'table.search() returned non-nil error')]
+      let err = s:Error.wrap(err, 'table.search() returned non-nil error')
+      return s:_error(self, err)
     endif
     if empty(cands)
       let [pair, err] = self._mode_table.get(self._key)
@@ -404,36 +418,37 @@ function! s:_TableNormalState_commit() abort dict
 endfunction
 
 
-function! s:new_table_buffering_state(name, mode_table, marker) abort
+function! s:new_table_preediting_state(simple_name, mode_table, marker) abort
   return {
   \ '_mode_table': a:mode_table,
   \ '_marker': a:marker,
   \ '_key': '',
   \ '_converted_key': [],
   \ '_buf': [],
-  \ 'name': a:name,
-  \ 'next': function('s:_TableBufferingState_next0'),
-  \ 'commit': function('s:_TableBufferingState_commit'),
+  \ '_simple_name': a:simple_name,
+  \ 'name': a:simple_name . '/preediting',
+  \ 'next': function('s:_TablePreeditingState_next0'),
+  \ 'commit': function('s:_TablePreeditingState_commit'),
   \}
 endfunction
 
-function! s:_TableBufferingState_next0(in, out) abort dict
+function! s:_TablePreeditingState_next0(in, out) abort dict
   call a:in.read_char()
   call a:out.write(self._marker)
   let state = extend(deepcopy(self), {
-  \ 'next': function('s:_TableBufferingState_next1')
+  \ 'next': function('s:_TablePreeditingState_next1')
   \})
   return [state, s:Error.NIL]
 endfunction
 
-function! s:_TableBufferingState_next1(in, out) abort dict
+function! s:_TablePreeditingState_next1(in, out) abort dict
   let c = a:in.read_char()
   if c is# "\<C-j>"
     if self._key isnot# ''
       " Commit self._buf
       let err = s:_convert_key(self, a:in, a:out)
       if err isnot# s:Error.NIL
-        return [self, err]
+        return s:_error(self, err)
       endif
       let self._key = ''
     endif
@@ -448,7 +463,7 @@ function! s:_TableBufferingState_next1(in, out) abort dict
     let in = s:StringReader.new("\<C-j>")
     let [state, err] = self.next(in, a:out)
     if err isnot# s:Error.NIL
-      return [state, err]
+      return s:_error(state, err)
     endif
     " Handle <CR> in TableNormalState
     call a:in.unread()
@@ -485,7 +500,7 @@ function! s:_TableBufferingState_next1(in, out) abort dict
     let in = s:StringReader.new("\<C-j>")
     let [state, err] = self.next(in, a:out)
     if err isnot# s:Error.NIL
-      return [state, err]
+      return s:_error(state, err)
     endif
     call a:out.write("\<Esc>")
     return [s:Nesk.new_black_hole_state(self.name), s:Error.NIL]
@@ -525,7 +540,7 @@ function! s:_TableBufferingState_next1(in, out) abort dict
     while in.size() ># 0
       let [state, err] = state.next(in, a:out)
       if err isnot# s:Error.NIL
-        return [state, err]
+        return s:_error(state, err)
       endif
     endwhile
     return [state, s:Error.NIL]
@@ -533,7 +548,7 @@ function! s:_TableBufferingState_next1(in, out) abort dict
     let [dict_table, err] = nesk#get_instance().get_table(s:SKKDICT_TABLES.name)
     if err isnot# s:Error.NIL
       let err = s:Error.wrap(err, 'Cannot load ' . s:SKKDICT_TABLES.name . ' table')
-      return [s:Error.NIL, err]
+      return s:_error(self, err)
     endif
     let new_key = join(self._buf, '')
     let inserted = self._marker . join(self._buf, '')
@@ -547,7 +562,8 @@ function! s:_TableBufferingState_next1(in, out) abort dict
     let [cands, err] = self._mode_table.search(self._key . c)
     if err isnot# s:Error.NIL
       " This must not be occurred in this table object
-      return [self, s:Error.wrap(err, 'table.search() returned non-nil error')]
+      let err = s:Error.wrap(err, 'table.search() returned non-nil error')
+      return s:_error(self, err)
     endif
     if empty(cands)
       let [pair, err] = self._mode_table.get(self._key)
@@ -557,12 +573,12 @@ function! s:_TableBufferingState_next1(in, out) abort dict
         let self._key = c
         let err = s:_convert_key(self, a:in, a:out)
         if err isnot# s:Error.NIL
-          return [self, err]
+          return s:_error(self, err)
         endif
       else
         let err = s:_convert_key(self, a:in, a:out)
         if err isnot# s:Error.NIL
-          return [self, err]
+          return s:_error(self, err)
         endif
         let self._key = c
         call a:out.write(c)
@@ -576,7 +592,7 @@ function! s:_TableBufferingState_next1(in, out) abort dict
       let self._key = pair[1]
       let err = s:_convert_key(self, a:in, a:out)
       if err isnot# s:Error.NIL
-        return [self, err]
+        return s:_error(self, err)
       endif
     else
       call a:out.write(c)
@@ -602,7 +618,7 @@ function! s:_send_converted_key_in_kana_state(state, in, out, enter_char, back_c
   while in.size() ># 0
     let [state, err] = state.next(in, a:out)
     if err isnot# s:Error.NIL
-      return [state, err]
+      return s:_error(state, err)
     endif
   endwhile
   return [state, s:Error.NIL]
@@ -629,7 +645,7 @@ function! s:_convert_key(state, in, out) abort
   return s:Error.NIL
 endfunction
 
-function! s:_TableBufferingState_commit() abort dict
+function! s:_TablePreeditingState_commit() abort dict
   let buf = join(self._buf, '')
   let bs = repeat("\<C-h>", strchars(buf))
   return bs . buf
@@ -644,20 +660,23 @@ function! s:new_kanji_convert_state(dict_table, prev_state, prev_inserted, key, 
   \ '_key': a:key,
   \ '_marker': a:marker,
   \ '_mode_table': a:mode_table,
-  \ 'next': function('s:_TableConvertState_next0'),
+  \ '_simple_name': a:prev_state._simple_name,
+  \ 'name': a:prev_state._simple_name . '/kanji',
+  \ 'next': function('s:_KanjiConvertState_next0'),
   \}
 endfunction
 
-function! s:_TableConvertState_next0(in, out) abort dict
+function! s:_KanjiConvertState_next0(in, out) abort dict
   call a:in.read_char()
   let [entry, err] = self._dict_table.get(self._key)
   if err isnot# s:Error.NIL
-    return [self, err]
+    return s:_error(self, err)
   endif
   let SKKDict = s:V.import('Nesk.Table.SKKDict')
   let candidates = SKKDict.Entry.get_candidates(entry)
   if empty(candidates)
-    return [self, s:Error.new('candidates of ' . string(self._key) . ' are empty')]
+    let err = s:Error.new('candidates of ' . string(self._key) . ' are empty')
+    return s:_error(self, err)
   endif
   call a:out.write(self._marker . SKKDict.EntryCandidate.get_string(candidates[0]))
   let state = {
@@ -669,12 +688,14 @@ function! s:_TableConvertState_next0(in, out) abort dict
   \ '_mode_table': self._mode_table,
   \ '_candidates': candidates,
   \ '_cand_idx': 0,
-  \ 'next': function('s:_TableConvertState_next1'),
+  \ '_simple_name': self._prev_state._simple_name,
+  \ 'name': self._prev_state.name,
+  \ 'next': function('s:_KanjiConvertState_next1'),
   \}
   return [state, s:Error.NIL]
 endfunction
 
-function! s:_TableConvertState_next1(in, out) abort dict
+function! s:_KanjiConvertState_next1(in, out) abort dict
   let c = a:in.read_char()
   let EntryCandidate = s:V.import('Nesk.Table.SKKDict').EntryCandidate
   if c is# "\<C-j>"
@@ -683,14 +704,14 @@ function! s:_TableConvertState_next1(in, out) abort dict
     let bs = repeat("\<C-h>", strchars(self._marker . cand))
     call a:out.write(bs . cand)
     " Back to TableNormalState
-    let state = s:new_table_normal_state(self._mode_table)
+    let state = s:new_table_normal_state(self._prev_state.name, self._mode_table)
     return [state, s:Error.NIL]
   elseif c is# "\<CR>"
     " Back to TableNormalState
     let in = s:StringReader.new("\<C-j>")
     let [state, err] = self.next(in, a:out)
     if err isnot# s:Error.NIL
-      return [state, err]
+      return s:_error(state, err)
     endif
     " Handle <CR> in TableNormalState
     call a:in.unread()
@@ -752,6 +773,8 @@ function! s:new_register_dict_state(prev_state, key, head_marker, left_marker, r
   \ '_head_marker': a:head_marker,
   \ '_left_marker': a:left_marker,
   \ '_right_marker': a:right_marker,
+  \ '_simple_name': a:prev_state._simple_name,
+  \ 'name': a:prev_state._simple_name . '/registering',
   \ 'next': function('s:_RegisterDictState_next0'),
   \}
 endfunction
@@ -768,14 +791,16 @@ function! s:_RegisterDictState_next0(in, out) abort dict
   let [skkdict, err] = nesk#get_instance().get_table(s:SKKDICT_TABLES.name)
   if err isnot# s:Error.NIL
     let err = s:Error.wrap(err, 'Cannot load ' . s:SKKDICT_TABLES.name . ' table')
-    return [self, err]
+    return s:_error(self, err)
   endif
+  " TODO: name
   let state = {
   \ '_key': self._key,
   \ '_prev_state': self._prev_state,
   \ '_sub_state': s:new_kana_mode(),
   \ '_bw': s:V.import('Nesk.IO.VimBufferWriter').new(),
   \ '_skkdict': skkdict,
+  \ 'name': self._prev_state.name,
   \ 'next': function('s:_RegisterDictState_next1'),
   \}
   return [state, s:Error.NIL]
@@ -786,14 +811,14 @@ function! s:_RegisterDictState_next1(in, out) abort dict
   while a:in.size() ># 0
     let [self._sub_state, err] = self._sub_state.next(a:in, out)
     if err isnot# s:Error.NIL
-      return [self, err]
+      return s:_error(self, err)
     endif
     " If <CR> was pressed, register the word and return to the previous state
     let word = self._bw.to_string()
     if matchstr(word, '.$') is# "\<CR>"
       let err = self._skkdict.register(self._key, word)
       if err isnot# s:Error.NIL
-        return [self, err]
+        return s:_error(self, err)
       endif
       return [self._prev_state, s:Error.NIL]
     endif
@@ -802,6 +827,14 @@ function! s:_RegisterDictState_next1(in, out) abort dict
 endfunction
 
 " }}}
+
+
+function! s:_error(state, err) abort
+  if !has_key(a:state, 'name')
+    throw string(a:state)
+  endif
+  return [s:Nesk.new_reset_mode_state(a:state.name), a:err]
+endfunction
 
 
 let &cpo = s:save_cpo

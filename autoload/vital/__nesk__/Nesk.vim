@@ -138,6 +138,9 @@ endfunction
 let s:Nesk.get_active_mode_name = function('s:_Nesk_get_active_mode_name')
 
 function! s:_Nesk_set_active_mode_name(name) abort dict
+  if a:name is# ''
+    return s:Error.new('cannot changed to empty mode')
+  endif
   if self._active_mode_name is# a:name
     return s:Error.new(printf('current mode is already "%s"', a:name))
   endif
@@ -317,7 +320,7 @@ function! s:_Nesk_send(str) abort dict
     let ex = type(v:exception) is# v:t_string ? v:exception : string(v:exception)
     let err = s:Error.new(ex, v:throwpoint)
   endtry
-  " Error handling
+  " Error
   let [str, err2] = self.disable()
   return [str, s:Error.append(err, err2)]
 endfunction
@@ -397,6 +400,18 @@ endfunction
 function! s:new_mode_change_state(name, mode_name) abort
   return {
   \ '_mode_name': a:mode_name,
+  \ '_reset': 0,
+  \ 'name': a:name,
+  \ 'next': function('s:_ModeChangeState_next'),
+  \}
+endfunction
+
+" a:name is current mode name.
+" a:mode_name is the next mode name.
+function! s:new_reset_mode_state(name) abort
+  return {
+  \ '_mode_name': a:name,
+  \ '_reset': 1,
   \ 'name': a:name,
   \ 'next': function('s:_ModeChangeState_next'),
   \}
@@ -407,6 +422,11 @@ endfunction
 function! s:_ModeChangeState_next(in, out) abort dict
   call a:in.read_char()
   let nesk = nesk#get_instance()
+  if self._reset
+    " Reset self._active_mode_name because self.set_active_mode_name() will fail
+    " if self._active_mode_name == self._mode_name
+    let self._active_mode_name = ''
+  endif
   let err = nesk.set_active_mode_name(self._mode_name)
   if err isnot# s:Error.NIL
     let err = s:Error.wrap(err, 'Cannot set active mode to ' . self._mode_name)

@@ -3,9 +3,12 @@ scriptencoding utf-8
 let s:save_cpo = &cpo
 set cpo&vim
 
-
-" TODO: Global variable
-let s:KEEP_STATE = 1
+" This script manages:
+" * Nesk module instance (singleton)
+" * Language mappings
+" * Options
+" * Auto-commands
+" Nesk module does not handle the above states.
 
 
 function! s:init(V) abort
@@ -13,8 +16,11 @@ function! s:init(V) abort
   let s:Error = a:V.import('Nesk.Error')
 
   let s:INSTANCE = s:Error.NIL
+
+  " TODO: Global variable
+  let s:KEEP_STATE = 1
+  let s:MAP_KEYS = nesk#get_default_mapped_keys()
 endfunction
-call s:init(vital#nesk#new())
 
 
 function! nesk#get_instance() abort
@@ -25,12 +31,25 @@ function! nesk#get_instance() abort
 endfunction
 
 function! nesk#enable() abort
-  let err = nesk#get_instance().enable()
-  if err isnot# s:Error.NIL
-    call s:echomsg('ErrorMsg', err.exception . ' at ' . err.throwpoint)
-    sleep 2
-    return ''
+  if !nesk#get_instance().enabled()
+    let err = nesk#get_instance().enable()
+    if err isnot# s:Error.NIL
+      call s:echomsg('ErrorMsg', err.exception . ' at ' . err.throwpoint)
+      sleep 2
+      return ''
+    endif
   endif
+
+  call s:enable()
+  redrawstatus
+
+  " NOTE: Vim can't enter lang-mode immediately
+  " in insert-mode or commandline-mode.
+  " We have to use i_CTRL-^ .
+  return &l:iminsert isnot# 1 ? "\<C-^>" : ''
+endfunction
+
+function! s:enable() abort
   augroup nesk-disable-hook
     autocmd!
     if s:KEEP_STATE
@@ -43,36 +62,37 @@ function! nesk#enable() abort
       autocmd InsertLeave <buffer> call nesk#get_instance().disable()
     endif
   augroup END
-  call s:map_keys(nesk#get_default_mapped_keys())
-  if mode() =~# '^[ic]$'
-    " NOTE: Vim can't enter lang-mode immediately
-    " in insert-mode or commandline-mode.
-    " We have to use i_CTRL-^ .
-    setlocal iminsert=1 imsearch=1
-    redrawstatus
-    return "\<C-^>"
-  else
-    setlocal iminsert=1 imsearch=1
-    redrawstatus
-    return ''
-  endif
+  call s:map_keys(s:MAP_KEYS)
+  " NOTE: Patch 8.0.1114 changed this default value
+  setlocal imsearch=-1
 endfunction
 
 function! nesk#disable() abort
-  let [str, err] = nesk#get_instance().disable()
-  if err isnot# s:Error.NIL
-    call s:echomsg('ErrorMsg', err.exception . ' at ' . err.throwpoint)
-    sleep 2
-    return ''
-  endif
-  call s:unmap_keys(nesk#get_default_mapped_keys())
-  setlocal iminsert=0 imsearch=0
+  call s:disable()
   redrawstatus
-  return str
+
+  if nesk#get_instance().enabled()
+    let [str, err] = nesk#get_instance().disable()
+    if err isnot# s:Error.NIL
+      call s:echomsg('ErrorMsg', err.exception . ' at ' . err.throwpoint)
+      sleep 2
+      return ''
+    endif
+    return str
+  endif
+  return ''
+endfunction
+
+function! s:disable() abort
+  augroup nesk-disable-hook
+    autocmd!
+  augroup END
+  call s:unmap_keys(s:MAP_KEYS)
+  setlocal iminsert=0 imsearch=0
 endfunction
 
 function! nesk#toggle() abort
-  return nesk#get_instance().enabled() ? nesk#disable() : nesk#enable()
+  return nesk#enabled() ? nesk#disable() : nesk#enable()
 endfunction
 
 function! nesk#enabled() abort
@@ -80,20 +100,32 @@ function! nesk#enabled() abort
 endfunction
 
 function! nesk#send(str) abort
+  if !nesk#enabled()
+    call s:echomsg('ErrorMsg',
+    \ 'Please run ":call nesk#enable()" before calling nesk#send()')
+    return ''
+  endif
   let [str, err] = nesk#get_instance().send(a:str)
   if err is# s:Error.NIL
     return str
   endif
+  call s:disable()
   call s:echomsg('ErrorMsg', err.exception . ' at ' . err.throwpoint)
   sleep 2
   return ''
 endfunction
 
 function! nesk#convert(str) abort
+  if !nesk#enabled()
+    call s:echomsg('ErrorMsg',
+    \ 'Please run ":call nesk#enable()" before calling nesk#convert()')
+    return ''
+  endif
   let [str, err] = nesk#get_instance().convert(a:str)
   if err is# s:Error.NIL
     return str
   endif
+  call s:disable()
   call s:echomsg('ErrorMsg', err.exception . ' at ' . err.throwpoint)
   sleep 2
   return ''
@@ -167,6 +199,9 @@ function! s:echomsg(hl, msg) abort
   echomsg a:msg
   echohl None
 endfunction
+
+
+call s:init(vital#nesk#new())
 
 
 let &cpo = s:save_cpo
