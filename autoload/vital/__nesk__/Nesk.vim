@@ -49,7 +49,6 @@ function! s:new() abort
   \ '_tables': {},
   \ '_active_mode_name': '',
   \ '_initial_mode': 'skk/kana',
-  \ '_keep_state': 1,
   \ '_logger': logger,
   \})
   let nesk.transit = function('s:_Nesk_transit')
@@ -60,44 +59,19 @@ let s:Nesk = {}
 
 function! s:_Nesk_enable() abort dict
   if self.enabled()
-    return ['', s:Error.new('already enabled')]
+    return s:Error.new('already enabled')
   endif
   call self.load_modes_in_rtp()
   let mode_name = self._initial_mode
   let [mode, err] = self.get_mode(mode_name)
   if err isnot# s:Error.NIL
-    return ['', err]
+    return err
   endif
-  augroup nesk-disable-hook
-    autocmd!
-    if self._keep_state
-      " Ignore return value of nesk.init_active_mode()
-      autocmd InsertLeave <buffer> call nesk#get_instance().init_active_mode()
-    else
-      autocmd InsertLeave <buffer> call nesk#disable()
-    endif
-  augroup END
   call self.set_states(mode_name, [mode.initial_state])
   " Reset self._active_mode_name because self.set_active_mode_name() will fail
   " if self._active_mode_name == mode_name
   let self._active_mode_name = ''
-  let err = self.set_active_mode_name(mode_name)
-  if err isnot# s:Error.NIL
-    return ['', err]
-  endif
-  call self.map_keys()
-  if mode() =~# '^[ic]$'
-    " NOTE: Vim can't enter lang-mode immediately
-    " in insert-mode or commandline-mode.
-    " We have to use i_CTRL-^ .
-    setlocal iminsert=1 imsearch=1
-    redrawstatus
-    return ["\<C-^>", s:Error.NIL]
-  else
-    setlocal iminsert=1 imsearch=1
-    redrawstatus
-    return ['', s:Error.NIL]
-  endif
+  return self.set_active_mode_name(mode_name)
 endfunction
 let s:Nesk.enable = function('s:_Nesk_enable')
 
@@ -112,19 +86,10 @@ function! s:_Nesk_disable() abort dict
   endif
   call self.clear_states()
   let self._active_mode_name = ''
-  call self.unmap_keys()
-  if mode() =~# '^[ic]$'
-    " NOTE: Vim can't escape lang-mode immediately
-    " in insert-mode or commandline-mode.
-    " We have to use i_CTRL-^ .
-    setlocal iminsert=0 imsearch=0
-    redrawstatus
-    return [committed . "\<C-^>", s:Error.NIL]
-  else
-    setlocal iminsert=0 imsearch=0
-    redrawstatus
-    return ['', s:Error.NIL]
-  endif
+  " NOTE: Vim can't escape lang-mode immediately
+  " in insert-mode or commandline-mode.
+  " We have to use i_CTRL-^ .
+  return [committed . "\<C-^>", s:Error.NIL]
 endfunction
 let s:Nesk.disable = function('s:_Nesk_disable')
 
@@ -134,7 +99,7 @@ endfunction
 let s:Nesk.toggle = function('s:_Nesk_toggle')
 
 function! s:_Nesk_enabled() abort dict
-  return &iminsert isnot# 0 && self.get_active_mode_name()[1] is# s:Error.NIL
+  return self.get_active_mode_name()[1] is# s:Error.NIL
 endfunction
 let s:Nesk.enabled = function('s:_Nesk_enabled')
 
@@ -361,54 +326,6 @@ function! s:_default_builder(table) abort
   \ 'name': a:table.name,
   \ 'build': {-> [a:table, s:Error.NIL]}
   \}
-endfunction
-
-function! s:_Nesk_map_keys() abort dict
-  for lhs in s:get_default_mapped_keys()
-    let lhs = substitute(lhs, '\V|', '<Bar>', 'g')
-    execute 'lnoremap <expr><nowait>' lhs 'nesk#send(' . string(lhs) . ')'
-  endfor
-endfunction
-let s:Nesk.map_keys = function('s:_Nesk_map_keys')
-
-function! s:_Nesk_unmap_keys() abort dict
-  for lhs in s:get_default_mapped_keys()
-    let lhs = substitute(lhs, '\V|', '<Bar>', 'g')
-    execute 'lunmap' lhs
-  endfor
-endfunction
-let s:Nesk.unmap_keys = function('s:_Nesk_unmap_keys')
-
-" TODO: Global variable?
-function! s:get_default_mapped_keys() abort
-  let keys = split('abcdefghijklmnopqrstuvwxyz', '\zs')
-  let keys += split('ABCDEFGHIJKLMNOPQRSTUVWXYZ', '\zs')
-  let keys += split('1234567890', '\zs')
-  let keys += split('!"#$%&''()', '\zs')
-  let keys += split(',./;:]@[-^\', '\zs')
-  let keys += split('>?_+*}`{=~', '\zs')
-  let keys += [
-  \   '<lt>',
-  \   '<Bar>',
-  \   '<Tab>',
-  \   '<BS>',
-  \   '<C-h>',
-  \   '<CR>',
-  \   '<Space>',
-  \   '<C-q>',
-  \   '<C-y>',
-  \   '<C-e>',
-  \   '<PageUp>',
-  \   '<PageDown>',
-  \   '<Up>',
-  \   '<Down>',
-  \   '<C-n>',
-  \   '<C-p>',
-  \   '<C-j>',
-  \   '<C-g>',
-  \   '<Esc>',
-  \]
-  return keys
 endfunction
 
 function! s:_Nesk_send(str) abort dict
