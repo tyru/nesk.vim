@@ -50,6 +50,7 @@ function! s:new() abort
     \})
   else
     let logger = s:Log.new({'output': 'Nop'})
+    call logger.set_level(logger.NONE)
   endif
   let nesk = extend(deepcopy(s:Nesk), {
   \ '__type__': 'Nesk',

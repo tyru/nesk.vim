@@ -85,6 +85,9 @@ function! s:_validate_levels(levels, default_level) abort
       throw 'Nesk.Log: new(): options.levels is not List of 2 elements'
     endif
     let [label, method] = l:Value
+    if label is# 'NONE'
+      throw 'Nesk.Log: new(): label NONE is reserved'
+    endif
     if label is# a:default_level
       let lv_index = i
     endif
@@ -110,6 +113,7 @@ function! s:_create_level_methods(logger, levels) abort
     let a:logger[method] = function(a:logger.log, [i])
     let a:logger[label] = i
   endfor
+  let a:logger.NONE = 1/0
   return a:logger
 endfunction
 
