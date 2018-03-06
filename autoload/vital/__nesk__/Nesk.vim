@@ -20,6 +20,9 @@ function! s:_vital_loaded(V) abort
   let s:StringReader = a:V.import('Nesk.IO.StringReader')
   let s:StringWriter = a:V.import('Nesk.IO.StringWriter')
   let s:Log = a:V.import('Nesk.Log')
+
+  " TODO: Global variable
+  let s:INITIAL_MODE = 'skk/kana'
 endfunction
 
 function! s:_vital_depends() abort
@@ -55,7 +58,7 @@ function! s:new() abort
   let nesk = extend(deepcopy(s:Nesk), {
   \ '__type__': 'Nesk',
   \ '_active_mode_name': '',
-  \ '_initial_mode': 'skk/kana',
+  \ '_initial_mode': s:INITIAL_MODE,
   \ '_modes': {},
   \ '_states': {},
   \ '_table_builders': {},
