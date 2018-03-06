@@ -61,13 +61,7 @@ let s:REGDICT_RIGHT_MARKER = '】'
 
 
 function! s:new_kana_mode() abort
-  let state = s:new_kana_state()
-  let mode = {'name': 'skk/kana', 'initial_state': state}
-  return mode
-endfunction
-
-function! s:new_kana_state() abort
-  return {'next': function('s:_KanaState_next')}
+  return {'name': 'skk/kana', 'next': function('s:_KanaState_next')}
 endfunction
 
 " Set up kana mode: define tables, and change state to TableNormalState.
@@ -84,9 +78,7 @@ endfunction
 " 'kata' mode {{{
 
 function! s:new_kata_mode() abort
-  let state = {'next': function('s:_KataState_next')}
-  let mode = {'name': 'skk/kata', 'initial_state': state}
-  return mode
+  return {'name': 'skk/kata', 'next': function('s:_KataState_next')}
 endfunction
 
 function! s:_KataState_next(in, out) abort
@@ -102,9 +94,7 @@ endfunction
 " 'hankata' mode {{{
 
 function! s:new_hankata_mode() abort
-  let state = {'next': function('s:_HankataState_next')}
-  let mode = {'name': 'skk/hankata', 'initial_state': state}
-  return mode
+  return {'name': 'skk/hankata', 'next': function('s:_HankataState_next')}
 endfunction
 
 function! s:_HankataState_next(in, out) abort
@@ -121,9 +111,7 @@ endfunction
 " 'ascii' mode {{{
 
 function! s:new_ascii_mode() abort
-  let state = {'next': function('s:_AsciiState_next')}
-  let mode = {'name': 'skk/ascii', 'initial_state': state}
-  return mode
+  return {'name': 'skk/ascii', 'next': function('s:_AsciiState_next')}
 endfunction
 
 function! s:_AsciiState_next(in, out) abort dict
@@ -143,9 +131,7 @@ endfunction
 " 'zenei' mode {{{
 
 function! s:new_zenei_mode() abort
-  let state = {'next': function('s:_ZeneiTable_next0')}
-  let mode = {'name': 'skk/zenei', 'initial_state': state}
-  return mode
+  return {'name': 'skk/zenei', 'next': function('s:_ZeneiTable_next0')}
 endfunction
 
 function! s:_ZeneiTable_next0(in, out) abort dict
@@ -625,7 +611,7 @@ function! s:_send_converted_key_in_kana_state(state, in, out, enter_char, back_c
   endif
 
   " Send a:state._converted_key in the certain mode again
-  let state = s:new_kana_state()
+  let state = s:new_kana_mode()
   while in.size() ># 0
     let [state, err] = state.next(in, a:out)
     if err isnot# s:Error.NIL
@@ -800,7 +786,7 @@ function! s:_RegisterDictState_next0(in, out) abort dict
   let state = {
   \ '_key': self._key,
   \ '_prev_state': self._prev_state,
-  \ '_sub_state': s:new_kana_state(),
+  \ '_sub_state': s:new_kana_mode(),
   \ '_bw': s:V.import('Nesk.IO.VimBufferWriter').new(),
   \ '_skkdict': skkdict,
   \ 'next': function('s:_RegisterDictState_next1'),

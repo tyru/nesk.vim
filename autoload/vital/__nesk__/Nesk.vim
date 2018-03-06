@@ -43,12 +43,12 @@ function! s:new() abort
   endif
   let nesk = extend(deepcopy(s:Nesk), {
   \ '_loaded_rtp': 0,
-  \ '_states': {},
-  \ '_modes': {},
-  \ '_table_builders': {},
-  \ '_tables': {},
   \ '_active_mode_name': '',
   \ '_initial_mode': 'skk/kana',
+  \ '_modes': {},
+  \ '_states': {},
+  \ '_table_builders': {},
+  \ '_tables': {},
   \ '_logger': logger,
   \})
   let nesk.transit = function('s:_Nesk_transit')
@@ -67,7 +67,7 @@ function! s:_Nesk_enable() abort dict
   if err isnot# s:Error.NIL
     return err
   endif
-  call self.set_states(mode_name, [mode.initial_state])
+  let self._states[mode_name] = mode
   " Reset self._active_mode_name because self.set_active_mode_name() will fail
   " if self._active_mode_name == mode_name
   let self._active_mode_name = ''
@@ -84,7 +84,7 @@ function! s:_Nesk_disable() abort dict
   if err is# s:Error.NIL && has_key(states[-1], 'commit')
     let committed = states[-1].commit()
   endif
-  call self.clear_states()
+  let self._states = {}
   let self._active_mode_name = ''
   " NOTE: Vim can't escape lang-mode immediately
   " in insert-mode or commandline-mode.
@@ -124,14 +124,14 @@ function! s:_Nesk_init_active_mode() abort dict
   if err isnot# s:Error.NIL
     return err
   endif
-  call self.set_states(mode_name, [mode.initial_state])
+  let self._states[mode_name] = [mode]
   return s:Error.NIL
 endfunction
 let s:Nesk.init_active_mode = function('s:_Nesk_init_active_mode')
 
 function! s:_Nesk_get_active_mode_name() abort dict
   if self._active_mode_name is# ''
-    return ['', s:Error.new('no active states exist')]
+    return ['', s:Error.new('not active')]
   endif
   return [self._active_mode_name, s:Error.NIL]
 endfunction
@@ -147,20 +147,10 @@ function! s:_Nesk_set_active_mode_name(name) abort dict
   endif
   let old = self._active_mode_name
   let self._active_mode_name = a:name
-  call self.set_states(a:name, [mode.initial_state])
+  let self._states[a:name] = [mode]
   return s:Error.NIL
 endfunction
 let s:Nesk.set_active_mode_name = function('s:_Nesk_set_active_mode_name')
-
-function! s:_Nesk_set_states(mode_name, states) abort dict
-  let self._states[a:mode_name] = a:states
-endfunction
-let s:Nesk.set_states = function('s:_Nesk_set_states')
-
-function! s:_Nesk_clear_states() abort dict
-  let self._states = {}
-endfunction
-let s:Nesk.clear_states = function('s:_Nesk_clear_states')
 
 function! s:_Nesk_get_active_states() abort dict
   let [mode_name, err] = self.get_active_mode_name()
@@ -202,7 +192,6 @@ function! s:_Nesk_define_mode(mode) abort dict
   if err isnot# s:Error.NIL
     return s:Error.wrap(err, 'nesk#define_mode()')
   endif
-  let a:mode.state = a:mode.initial_state
   let self._modes[a:mode.name] = a:mode
   return s:Error.NIL
 endfunction
@@ -210,40 +199,22 @@ let s:Nesk.define_mode = function('s:_Nesk_define_mode')
 
 function! s:_validate_mode(nesk, mode) abort
   if type(a:mode) isnot# v:t_dict
-    return s:Error.new('mode is not Dictionary')
+    return s:Error.new(a:name . ' is not Dictionary')
   endif
   " mode.name
   if type(get(a:mode, 'name', 0)) isnot# v:t_string
     return s:Error.new('mode.name does not exist or is not String')
   endif
+  " Check if mode is registered
   if has_key(a:nesk._modes, a:mode.name)
     return s:Error.new(printf('mode "%s" is already registered', a:mode.name))
   endif
-  " mode.initial_state
-  if !has_key(a:mode, 'initial_state')
-    return s:Error.new('mode.initial_state does not exist')
-  endif
-  let err = s:_validate_state(a:mode.initial_state, 'mode.initial_state')
-  if err isnot# s:Error.NIL
-    return err
-  endif
-  " mode.state
-  if has_key(a:mode, 'state')
-    return s:Error.new('mode.state must not exist')
-  endif
-  return s:Error.NIL
-endfunction
-
-function! s:_validate_state(state, name) abort
-  if type(a:state) isnot# v:t_dict
-    return s:Error.new(a:name . ' is not Dictionary')
-  endif
-  " state.next
-  if !has_key(a:state, 'next') || type(a:state.next) isnot# v:t_func
+  " mode.next
+  if !has_key(a:mode, 'next') || type(a:mode.next) isnot# v:t_func
     return s:Error.new(a:name . '.next is not Funcref')
   endif
-  " state.commit (optional)
-  if has_key(a:state, 'commit') && type(a:state.commit) isnot# v:t_func
+  " mode.commit (optional)
+  if has_key(a:mode, 'commit') && type(a:mode.commit) isnot# v:t_func
     return s:Error.new(a:name . '.commit is not Funcref')
   endif
   return s:Error.NIL
@@ -443,7 +414,7 @@ function! s:_ModeChangeState_next(in, out) abort dict
     let err = s:Error.wrap(err, 'Cannot get active mode')
     return [s:Error.NIL, err]
   endif
-  return [mode.initial_state, s:Error.NIL]
+  return [mode, s:Error.NIL]
 endfunction
 
 function! s:new_disable_state() abort
