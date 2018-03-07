@@ -837,8 +837,9 @@ function! s:_RegisterDictState_next1(in, out) abort dict
     endif
     " If <CR> was pressed, register the word and return to the previous state
     let word = self._bw.to_string()
-    if matchstr(word, '.$') is# "\<CR>"
-      let err = self._skkdict.register(self._key, word)
+    let idx = stridx(word, "\<CR>")
+    if idx ># 1
+      let err = self._skkdict.register(self._key, word[: idx - 1])
       if err isnot# s:Error.NIL
         return s:_error(self, err)
       endif
