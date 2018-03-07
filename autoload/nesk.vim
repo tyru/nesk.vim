@@ -126,7 +126,7 @@ function! nesk#send(str) abort
     let err = nesk.load_modes_in_rtp()
     if err isnot# s:Error.NIL
       call s:echomsg('ErrorMsg', err.exception . ' at ' . err.throwpoint)
-      return
+      return ''
     endif
     let s:loaded_rtp = 1
   endif
@@ -142,13 +142,10 @@ endfunction
 
 function! nesk#convert(str) abort
   let nesk = nesk#new()
-  if !s:loaded_rtp
-    let err = nesk.load_modes_in_rtp()
-    if err isnot# s:Error.NIL
-      call s:echomsg('ErrorMsg', err.exception . ' at ' . err.throwpoint)
-      return
-    endif
-    let s:loaded_rtp = 1
+  let err = nesk.load_modes_in_rtp()
+  if err isnot# s:Error.NIL
+    call s:echomsg('ErrorMsg', err.exception . ' at ' . err.throwpoint)
+    return ''
   endif
   let err = nesk.enable()
   if err isnot# s:Error.NIL
