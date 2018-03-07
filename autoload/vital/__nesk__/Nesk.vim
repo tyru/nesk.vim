@@ -114,14 +114,14 @@ function! s:_Nesk_load_modes_in_rtp() abort dict
       continue
     endif
     let path = tr(m[1], '\', '/')
-    let m = matchlist(path, 'autoload/nesk/mode/\(.*\).vim')
+    let m = matchlist(path, '/autoload/nesk/mode/\(.*\).vim$')
     if empty(m)
       continue
     endif
     let loaded_modes[m[1]] = 1
   endfor
-  for file in globpath(&rtp, 'autoload/nesk/mode/*.vim', 1, 1)
-    let name = matchstr(tr(file, '\', '/'), 'autoload/nesk/mode/\zs.*\ze.vim')
+  for file in globpath(&rtp, '/autoload/nesk/mode/*.vim', 1, 1)
+    let name = matchstr(tr(file, '\', '/'), '/autoload/nesk/mode/\zs.*\ze.vim$')
     if !has_key(loaded_modes, name)
       try
         source `=file`
