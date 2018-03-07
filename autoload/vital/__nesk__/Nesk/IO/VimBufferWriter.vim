@@ -28,28 +28,31 @@ function! s:_VimBufferWriter_write(str) abort dict
     return s:Error.NIL
   endif
   let reader = s:StringReader.new(self._str . a:str)
-  let result = ''
+  let result = []
   while reader.size() ># 0
     let [c, err] = reader.read_char()
     if err isnot# s:Error.NIL
       return err
     endif
+    let bs = 0
     if c is# "\<C-h>"
-      let result = strcharpart(result, 0, strchars(result)-1)
+      let bs = 1
     elseif c is# "\x80"
       " NOTE: StringReader.read() does not return non-nil error
-      let str = c . reader.read(2)[0]
-      if str is# "\<BS>"
-        let result = strcharpart(result, 0, strchars(result)-1)
+      if c . reader.read(2)[0] is# "\<BS>"
+        let bs = 1
+        let c = "\<C-h>"
       else
         call reader.unread()
-        let result .= "\x80"
       endif
+    endif
+    if bs && !empty(result) && result[-1] isnot# "\<C-h>"
+      call remove(result, -1)
     else
-      let result .= c
+      let result += [c]
     endif
   endwhile
-  let self._str = result
+  let self._str = join(result, '')
   return s:Error.NIL
 endfunction
 
