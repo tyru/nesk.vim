@@ -19,7 +19,8 @@ function! s:new(exception, ...) abort
 endfunction
 
 function! s:is_error(err) abort
-  return type(a:err) is# v:t_dict &&
+  return a:err is# s:NIL ||
+  \      type(a:err) is# v:t_dict &&
   \      type(get(a:err, 'exception', 0)) is# v:t_string &&
   \      type(get(a:err, 'throwpoint', 0)) is# v:t_string
 endfunction
@@ -64,7 +65,8 @@ function! s:new_multi(...) abort
 endfunction
 
 function! s:is_multi_error(err) abort
-  return s:is_error(a:err) &&
+  return a:err is# s:NIL ||
+  \      s:is_error(a:err) &&
   \      type(get(a:err, 'errors', 0)) is# v:t_list
 endfunction
 
