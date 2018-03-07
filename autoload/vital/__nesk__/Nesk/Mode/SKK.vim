@@ -16,6 +16,7 @@ function! s:_vital_depends() abort
   return [
   \ 'Nesk',
   \ 'Nesk.Error',
+  \ 'Nesk.IO',
   \ 'Nesk.IO.StringReader',
   \ 'Nesk.IO.MultiWriter',
   \ 'Nesk.IO.VimBufferWriter',
@@ -131,7 +132,7 @@ function! s:new_ascii_mode(nesk) abort
 endfunction
 
 function! s:_AsciiState_next(in, out) abort dict
-  let c = a:in.read_char()
+  let c = s:_read_char(a:in)
   if c is# "\<C-j>"
     " Change mode (must leave one character at least for ModeChangeState)
     call a:in.unread()
@@ -169,7 +170,7 @@ function! s:_ZeneiTable_next0(in, out) abort dict
 endfunction
 
 function! s:_ZeneiTable_next1(in, out) abort dict
-  let c = a:in.read_char()
+  let c = s:_read_char(a:in)
   if c is# "\<C-j>"
     " Change mode (must leave one character at least for ModeChangeState)
     call a:in.unread()
@@ -281,7 +282,7 @@ endfunction
 " after leaving this function.
 " (the loop exits when a:in becomes empty)
 function! s:_TableNormalState_next(in, out) abort dict
-  let c = a:in.read_char()
+  let c = s:_read_char(a:in)
   if c is# "\<C-j>"
     if self._key is# ''
       return [self, s:Error.NIL]
@@ -436,7 +437,7 @@ function! s:new_table_preediting_state(nesk, simple_name, mode_table, marker) ab
 endfunction
 
 function! s:_TablePreeditingState_next0(in, out) abort dict
-  call a:in.read_char()
+  call s:_read_char(a:in)
   call s:_write(a:out, self._marker)
   let state = extend(deepcopy(self), {
   \ 'next': function('s:_TablePreeditingState_next1')
@@ -445,7 +446,7 @@ function! s:_TablePreeditingState_next0(in, out) abort dict
 endfunction
 
 function! s:_TablePreeditingState_next1(in, out) abort dict
-  let c = a:in.read_char()
+  let c = s:_read_char(a:in)
   if c is# "\<C-j>"
     if self._key isnot# ''
       " Commit self._buf
@@ -682,7 +683,7 @@ function! s:new_kanji_convert_state(nesk, dict_table, prev_state, prev_inserted,
 endfunction
 
 function! s:_KanjiConvertState_next0(in, out) abort dict
-  call a:in.read_char()
+  call s:_read_char(a:in)
   let [entry, err] = self._dict_table.get(self._key)
   if err isnot# s:Error.NIL
     return s:_error(self, err)
@@ -712,7 +713,7 @@ function! s:_KanjiConvertState_next0(in, out) abort dict
 endfunction
 
 function! s:_KanjiConvertState_next1(in, out) abort dict
-  let c = a:in.read_char()
+  let c = s:_read_char(a:in)
   let EntryCandidate = s:V.import('Nesk.Table.SKKDict').EntryCandidate
   if c is# "\<C-j>"
     " Remove marker
@@ -800,7 +801,7 @@ function! s:new_register_dict_state(nesk, prev_state, key, head_marker, left_mar
 endfunction
 
 function! s:_RegisterDictState_next0(in, out) abort dict
-  call a:in.read_char()
+  call s:_read_char(a:in)
 
   " Insert markers
   call s:_write(a:out,
@@ -849,10 +850,21 @@ endfunction
 
 " }}}
 
+function! s:_read_char(in) abort
+  let [c, err] = a:in.read_char()
+  if !s:Error.is_error(err)
+    throw 'a:in.read_char() returned non-error object: ' . string(err)
+  elseif err isnot# s:Error.NIL
+    throw err.exception . ' @ ' . err.throwpoint
+  endif
+  return c
+endfunction
 
 function! s:_write(out, str) abort
   let err = a:out.write(a:str)
-  if err isnot# s:Error.NIL
+  if !s:Error.is_error(err)
+    throw 'a:out.write() returned non-error object: ' . string(err)
+  elseif err isnot# s:Error.NIL
     throw err.exception . ' @ ' . err.throwpoint
   endif
 endfunction

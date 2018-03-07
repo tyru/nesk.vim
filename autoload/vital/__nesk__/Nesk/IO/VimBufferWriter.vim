@@ -5,32 +5,35 @@ set cpo&vim
 
 
 function! s:_vital_loaded(V) abort
-  let s:StringWriter = a:V.import('Nesk.IO.StringWriter')
+  let s:Error = a:V.import('Nesk.Error')
   let s:StringReader = a:V.import('Nesk.IO.StringReader')
 endfunction
 
 function! s:_vital_depends() abort
-  return ['Nesk.IO.StringWriter', 'Nesk.IO.StringReader']
+  return ['Error', 'Nesk.IO.StringReader']
 endfunction
 
 
 function! s:new() abort
   return {
-  \ '_writer': s:StringWriter.new(),
+  \ '_str': '',
   \ 'write': function('s:_VimBufferWriter_write'),
   \ 'to_string': function('s:_VimBufferWriter_to_string'),
   \}
 endfunction
 
+" TODO: skip last parsed string
 function! s:_VimBufferWriter_write(str) abort dict
-  return self._writer.write(a:str)
-endfunction
-
-function! s:_VimBufferWriter_to_string() abort dict
-  let reader = s:StringReader.new(self._writer.to_string())
+  if a:str is# ''
+    return s:Error.NIL
+  endif
+  let reader = s:StringReader.new(self._str . a:str)
   let result = ''
   while reader.size() ># 0
-    let c = reader.read_char()
+    let [c, err] = reader.read_char()
+    if err isnot# s:Error.NIL
+      return err
+    endif
     if c is# "\<C-h>"
       let result = strcharpart(result, 0, strchars(result)-1)
     elseif c is# "\x80"
@@ -46,7 +49,12 @@ function! s:_VimBufferWriter_to_string() abort dict
       let result .= c
     endif
   endwhile
-  return result
+  let self._str = result
+  return s:Error.NIL
+endfunction
+
+function! s:_VimBufferWriter_to_string() abort dict
+  return self._str
 endfunction
 
 

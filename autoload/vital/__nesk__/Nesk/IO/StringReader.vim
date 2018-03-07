@@ -45,7 +45,7 @@ function! s:_StringReader_read_char() abort dict
   let c = self.peek_char()
   let self._last_read = strlen(c)
   let self._pos += self._last_read
-  return c
+  return [c, s:Error.NIL]
 endfunction
 
 function! s:_StringReader_peek_char() abort dict
