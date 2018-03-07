@@ -4,6 +4,15 @@ let s:save_cpo = &cpo
 set cpo&vim
 
 
+function! s:_vital_loaded(V) abort
+  let s:Error = a:V.import('Nesk.Error')
+endfunction
+
+function! s:_vital_depends() abort
+  return ['Nesk.Error']
+endfunction
+
+
 function! s:new(str) abort
   return {
   \ '_str': a:str,
@@ -22,7 +31,7 @@ function! s:_StringReader_read(n) abort dict
   let str = self.peek(a:n)
   let self._last_read = strlen(str)
   let self._pos += self._last_read
-  return str
+  return [str, s:Error.NIL]
 endfunction
 
 function! s:_StringReader_peek(n) abort dict

@@ -137,7 +137,7 @@ function! s:_AsciiState_next(in, out) abort dict
     call a:in.unread()
     return [s:Nesk.new_mode_change_state(self.name, 'skk/kana'), s:Error.NIL]
   else
-    call a:out.write(c)
+    call s:_write(a:out, c)
   endif
   return [self, s:Error.NIL]
 endfunction
@@ -181,7 +181,7 @@ function! s:_ZeneiTable_next1(in, out) abort dict
     elseif err isnot# s:Error.NIL
       return s:_error(self, err)
     endif
-    call a:out.write(str)
+    call s:_write(a:out, str)
   endif
   return [self, s:Error.NIL]
 endfunction
@@ -288,10 +288,10 @@ function! s:_TableNormalState_next(in, out) abort dict
     endif
     " Commit self._key
     let bs = repeat("\<C-h>", strchars(self._key))
-    call a:out.write(bs)
+    call s:_write(a:out, bs)
     let [pair, err] = self._mode_table.get(self._key)
     if err is# s:Error.NIL
-      call a:out.write(pair[0])
+      call s:_write(a:out, pair[0])
     elseif err isnot# s:ERROR_NO_RESULTS
       return s:_error(self, err)
     endif
@@ -303,23 +303,23 @@ function! s:_TableNormalState_next(in, out) abort dict
     if err isnot# s:Error.NIL
       return s:_error(state, err)
     endif
-    call a:out.write("\<CR>")
+    call s:_write(a:out, "\<CR>")
     return [self, s:Error.NIL]
   elseif c is# "\<C-h>"
     if self._key isnot# ''
       let self._key = strcharpart(self._key, 0, strchars(self._key)-1)
     endif
-    call a:out.write("\<C-h>")
+    call s:_write(a:out, "\<C-h>")
     return [self, s:Error.NIL]
   elseif c is# "\x80"    " backspace is \x80 k b
-    let str = c . a:in.read(2)
-    if str is# "\<BS>"
+    let [rest, err] = a:in.read(2)
+    if err is# s:Error.NIL && c . rest is# "\<BS>"
       let in = s:StringReader.new("\<C-h>")
       return self.next(in, a:out)
     else
       call a:in.unread()
     endif
-    return [self, s:Error.NIL]
+    return [self, err]
   elseif c is# "\<Esc>"
     " NOTE: Vim only key: commit self._buf and escape to Vim normal mode
     let in = s:StringReader.new("\<C-j>")
@@ -327,12 +327,12 @@ function! s:_TableNormalState_next(in, out) abort dict
     if err isnot# s:Error.NIL
       return s:_error(state, err)
     endif
-    call a:out.write("\<Esc>")
+    call s:_write(a:out, "\<Esc>")
     return [s:Nesk.new_black_hole_state(self.name), s:Error.NIL]
   elseif c is# "\<C-g>"
     if self._key isnot# ''
       let bs = repeat("\<C-h>", strchars(self._key))
-      call a:out.write(bs)
+      call s:_write(a:out, bs)
       let self._key = ''
     endif
     return [self, s:Error.NIL]
@@ -389,7 +389,7 @@ function! s:_TableNormalState_next(in, out) abort dict
       let str = c
       let self._key .= c
     endif
-    call a:out.write(str)
+    call s:_write(a:out, str)
     return [self, s:Error.NIL]
   endif
 endfunction
@@ -437,7 +437,7 @@ endfunction
 
 function! s:_TablePreeditingState_next0(in, out) abort dict
   call a:in.read_char()
-  call a:out.write(self._marker)
+  call s:_write(a:out, self._marker)
   let state = extend(deepcopy(self), {
   \ 'next': function('s:_TablePreeditingState_next1')
   \})
@@ -458,7 +458,7 @@ function! s:_TablePreeditingState_next1(in, out) abort dict
     " Back to TableNormalState
     let buf = join(self._buf, '')
     let bs = repeat("\<C-h>", strchars(self._marker . buf))
-    call a:out.write(bs . buf)
+    call s:_write(a:out, bs . buf)
     let state = s:new_table_normal_state(
     \ self._nesk, self._simple_name, self._mode_table
     \)
@@ -477,31 +477,31 @@ function! s:_TablePreeditingState_next1(in, out) abort dict
     if self._key isnot# ''
       " Remove last char (key)
       let self._key = strcharpart(self._key, 0, strchars(self._key)-1)
-      call a:out.write("\<C-h>")
+      call s:_write(a:out, "\<C-h>")
       return [self, s:Error.NIL]
     elseif !empty(self._converted_key)
       " Remove last char (buf)
       call remove(self._converted_key, -1)
-      call a:out.write("\<C-h>")
+      call s:_write(a:out, "\<C-h>")
       return [self, s:Error.NIL]
     endif
     " Back to TableNormalState
     let buf = join(self._buf, '')
     let bs = repeat("\<C-h>", strchars(self._marker . buf))
-    call a:out.write(bs . buf)
+    call s:_write(a:out, bs . buf)
     let state = s:new_table_normal_state(
     \ self._nesk, self._simple_name, self._mode_table
     \)
     return [state, s:Error.NIL]
   elseif c is# "\x80"    " backspace is \x80 k b
-    let str = c . a:in.read(2)
-    if str is# "\<BS>"
+    let [rest, err] = a:in.read(2)
+    if err is# s:Error.NIL && c . rest is# "\<BS>"
       let in = s:StringReader.new("\<C-h>")
       return self.next(in, a:out)
     else
       call a:in.unread()
     endif
-    return [self, s:Error.NIL]
+    return [self, err]
   elseif c is# "\<Esc>"
     " NOTE: Vim only key: commit self._buf and escape to Vim normal mode
     let in = s:StringReader.new("\<C-j>")
@@ -509,14 +509,14 @@ function! s:_TablePreeditingState_next1(in, out) abort dict
     if err isnot# s:Error.NIL
       return s:_error(state, err)
     endif
-    call a:out.write("\<Esc>")
+    call s:_write(a:out, "\<Esc>")
     return [s:Nesk.new_black_hole_state(self.name), s:Error.NIL]
   elseif c is# "\<C-g>"
     if !empty(self._buf)
       " Remove inserted string
       let n = strchars(self._marker . join(self._buf, '') . self._key)
       let bs = repeat("\<C-h>", n)
-      call a:out.write(bs)
+      call s:_write(a:out, bs)
     endif
     " Back to TableNormalState
     let state = s:new_table_normal_state(
@@ -562,7 +562,7 @@ function! s:_TablePreeditingState_next1(in, out) abort dict
     let new_key = join(self._buf, '')
     let inserted = self._marker . join(self._buf, '')
     let bs = repeat("\<C-h>", strchars(inserted . self._key))
-    call a:out.write(bs)
+    call s:_write(a:out, bs)
     let self._key = ''
     let state = s:new_kanji_convert_state(
     \ self._nesk, dict_table, self, inserted, new_key, s:CONVERT_MARKER, self._mode_table
@@ -580,7 +580,7 @@ function! s:_TablePreeditingState_next1(in, out) abort dict
       let [pair, err] = self._mode_table.get(self._key)
       if err is# s:ERROR_NO_RESULTS
         let bs = repeat("\<C-h>", strchars(self._key))
-        call a:out.write(bs)
+        call s:_write(a:out, bs)
         let self._key = c
         let err = s:_convert_key(self, a:in, a:out)
         if err isnot# s:Error.NIL
@@ -592,12 +592,12 @@ function! s:_TablePreeditingState_next1(in, out) abort dict
           return s:_error(self, err)
         endif
         let self._key = c
-        call a:out.write(c)
+        call s:_write(a:out, c)
       endif
     elseif len(cands) is# 1
       let pair = cands[0][1]
       let bs = repeat("\<C-h>", strchars(self._key))
-      call a:out.write(bs . pair[0] . pair[1])
+      call s:_write(a:out, bs . pair[0] . pair[1])
       let self._buf += [pair[0]]
       let self._converted_key += [self._key . c]
       let self._key = pair[1]
@@ -606,7 +606,7 @@ function! s:_TablePreeditingState_next1(in, out) abort dict
         return s:_error(self, err)
       endif
     else
-      call a:out.write(c)
+      call s:_write(a:out, c)
       let self._key .= c
     endif
     return [self, s:Error.NIL]
@@ -616,7 +616,7 @@ endfunction
 function! s:_send_converted_key_in_kana_state(state, in, out, enter_char, back_char) abort
   " Remove inserted string
   let bs = repeat("\<C-h>", strchars(a:state._marker . join(a:state._buf, '') . a:state._key))
-  call a:out.write(bs)
+  call s:_write(a:out, bs)
 
   if empty(a:state._converted_key)
     let in = s:StringReader.new(a:enter_char)
@@ -648,7 +648,7 @@ function! s:_convert_key(state, in, out) abort
       return err
     endif
     let bs = repeat("\<C-h>", strchars(a:state._key))
-    call a:out.write(bs . pair[0] . pair[1])
+    call s:_write(a:out, bs . pair[0] . pair[1])
     let a:state._buf += [pair[0]]
     let a:state._converted_key += [a:state._key]
     let a:state._key = pair[1]
@@ -690,7 +690,7 @@ function! s:_KanjiConvertState_next0(in, out) abort dict
     let err = s:Error.new('candidates of ' . string(self._key) . ' are empty')
     return s:_error(self, err)
   endif
-  call a:out.write(self._marker . SKKDict.EntryCandidate.get_string(candidates[0]))
+  call s:_write(a:out, self._marker . SKKDict.EntryCandidate.get_string(candidates[0]))
   let state = {
   \ '_nesk': self._nesk,
   \ '_dict_table': self._dict_table,
@@ -715,7 +715,7 @@ function! s:_KanjiConvertState_next1(in, out) abort dict
     " Remove marker
     let cand = EntryCandidate.get_string(self._candidates[self._cand_idx])
     let bs = repeat("\<C-h>", strchars(self._marker . cand))
-    call a:out.write(bs . cand)
+    call s:_write(a:out, bs . cand)
     " Back to TableNormalState
     let state = s:new_table_normal_state(
     \ self._nesk, self._prev_state._simple_name, self._mode_table
@@ -738,7 +738,7 @@ function! s:_KanjiConvertState_next1(in, out) abort dict
       " Remove marker
       let cand = EntryCandidate.get_string(self._candidates[self._cand_idx])
       let bs = repeat("\<C-h>", strchars(self._marker . cand))
-      call a:out.write(bs . cand)
+      call s:_write(a:out, bs . cand)
       " Change to register state
       let state = s:new_register_dict_state(
       \ self._nesk,
@@ -754,7 +754,7 @@ function! s:_KanjiConvertState_next1(in, out) abort dict
     let self._cand_idx += 1
     let cand = EntryCandidate.get_string(self._candidates[self._cand_idx])
     let bs = repeat("\<C-h>", strchars(self._marker . cand))
-    call a:out.write(bs . self._marker . cand)
+    call s:_write(a:out, bs . self._marker . cand)
     return [self, s:Error.NIL]
   elseif c is# 'x'
     if self._cand_idx <=# 0
@@ -763,7 +763,7 @@ function! s:_KanjiConvertState_next1(in, out) abort dict
     let self._cand_idx -= 1
     let cand = EntryCandidate.get_string(self._candidates[self._cand_idx])
     let bs = repeat("\<C-h>", strchars(self._marker . cand))
-    call a:out.write(bs . self._marker . cand)
+    call s:_write(a:out, bs . self._marker . cand)
     return [self, s:Error.NIL]
   else
     " Handle in TableNormalState
@@ -778,7 +778,7 @@ function! s:_restore_prev_state(state, out) abort
   let EntryCandidate = s:V.import('Nesk.Table.SKKDict').EntryCandidate
   let cand = EntryCandidate.get_string(a:state._candidates[a:state._cand_idx])
   let bs = repeat("\<C-h>", strchars(a:state._marker . cand))
-  call a:out.write(bs . a:state._prev_inserted)
+  call s:_write(a:out, bs . a:state._prev_inserted)
   return [a:state._prev_state, s:Error.NIL]
 endfunction
 
@@ -800,7 +800,7 @@ function! s:_RegisterDictState_next0(in, out) abort dict
   call a:in.read_char()
 
   " Insert markers
-  call a:out.write(
+  call s:_write(a:out,
   \ self._head_marker . self._key .
   \ self._left_marker . self._right_marker . "\<Left>"
   \)
@@ -846,6 +846,13 @@ endfunction
 
 " }}}
 
+
+function! s:_write(out, str) abort
+  let err = a:out.write(a:str)
+  if err isnot# s:Error.NIL
+    throw err.exception . ' @ ' . err.throwpoint
+  endif
+endfunction
 
 function! s:_error(state, err) abort
   return [s:Nesk.new_reset_mode_state(a:state.name), a:err]

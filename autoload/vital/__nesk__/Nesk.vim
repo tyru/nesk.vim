@@ -480,15 +480,19 @@ endfunction
 
 function! s:_DisableState_next(in, out) abort dict
   " Read all string to stop nesk.send() loop
-  call a:in.read(a:in.size())
+  let err = a:in.read(a:in.size())[1]
+  if err isnot# s:Error.NIL
+    let err = s:Error.wrap(err, 'in.read() returned non-nil error')
+    return [s:Error.NIL, err]
+  endif
   let nesk = nesk#get_instance()
   let [str, err] = nesk.disable()
   if err isnot# s:Error.NIL
     let err = s:Error.wrap(err, 'Cannot disable skk')
     return [s:Error.NIL, err]
   endif
-  call a:out.write(str)
-  return [s:new_black_hole_state(self.name), s:Error.NIL]
+  let err = a:out.write(str)
+  return [s:new_black_hole_state(self.name), err]
 endfunction
 
 function! s:new_black_hole_state(name) abort
@@ -500,8 +504,8 @@ endfunction
 
 " Read all string from a:in to stop the nesk.send()'s loop
 function! s:_BlackHoleState_next(in, out) abort dict
-  call a:in.read(a:in.size())
-  return [self, s:Error.NIL]
+  let err = a:in.read(a:in.size())[1]
+  return [self, err]
 endfunction
 
 

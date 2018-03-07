@@ -34,7 +34,8 @@ function! s:_VimBufferWriter_to_string() abort dict
     if c is# "\<C-h>"
       let result = strcharpart(result, 0, strchars(result)-1)
     elseif c is# "\x80"
-      let str = c . reader.read(2)
+      " NOTE: StringReader.read() does not return non-nil error
+      let str = c . reader.read(2)[0]
       if str is# "\<BS>"
         let result = strcharpart(result, 0, strchars(result)-1)
       else
