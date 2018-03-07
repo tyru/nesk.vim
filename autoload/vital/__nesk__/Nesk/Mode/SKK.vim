@@ -524,19 +524,22 @@ function! s:_TablePreeditingState_next1(in, out) abort dict
     \)
     return [state, s:Error.NIL]
   elseif c is# 'l'
-    " NOTE: Vim only behavior: if a:state._converted_key is not empty,
+    " NOTE: nesk special behavior
+    " if a:state._converted_key is not empty,
     " insert the string to buffer (e.g. "Kanjil" -> "kanji")
     return s:_send_converted_key_in_kana_state(self, a:in, a:out, 'l', "\<C-j>")
   elseif c is# 'L'
-    " NOTE: Vim only behavior: if a:state._converted_key is not empty,
+    " NOTE: nesk special behavior
+    " if a:state._converted_key is not empty,
     " insert the string to buffer (e.g. "KanjiL" -> "ｋａｎｊｉ")
     return s:_send_converted_key_in_kana_state(self, a:in, a:out, 'L', "\<C-j>")
   elseif c is# 'q'
-    " NOTE: Vim only behavior: if a:state._converted_key is not empty,
+    " if a:state._converted_key is not empty,
     " insert the string to buffer (e.g. "Kanjiq" -> "カンジ")
     return s:_send_converted_key_in_kana_state(self, a:in, a:out, 'q', 'q')
   elseif c is# "\<C-q>"
-    " NOTE: Vim only behavior: if a:state._converted_key is not empty,
+    " NOTE: nesk special behavior
+    " if a:state._converted_key is not empty,
     " insert the string to buffer (e.g. "Kanjiq" -> "ｶﾝｼﾞ")
     return s:_send_converted_key_in_kana_state(self, a:in, a:out, "\<C-q>", "\<C-q>")
   elseif c is# 'Q'
