@@ -4,16 +4,6 @@ let s:save_cpo = &cpo
 set cpo&vim
 
 
-if exists('*NeskGetSourcedModes')
-  let s:SOURCED_MODES = NeskGetSourcedModes()
-else
-  let s:SOURCED_MODES = {}
-endif
-
-function! NeskGetSourcedModes() abort
-  return get(s:, 'SOURCED_MODES', {})
-endfunction
-
 function! s:_vital_loaded(V) abort
   let s:V = a:V
   let s:Error = a:V.import('Nesk.Error')
@@ -75,9 +65,6 @@ function! s:_Nesk_enable() abort dict
   if self.is_enabled()
     return s:Error.new('already enabled')
   endif
-  if empty(s:SOURCED_MODES)
-    return s:Error.new('no modes placed at autoload/nesk/mode/*.vim in runtimepath')
-  endif
   let mode_name = self._initial_mode
   let [mode, err] = self.get_mode(mode_name)
   if err isnot# s:Error.NIL
@@ -120,15 +107,37 @@ endfunction
 let s:Nesk.is_enabled = function('s:_Nesk_is_enabled')
 
 function! s:_Nesk_load_modes_in_rtp() abort dict
+  let loaded_modes = {}
+  for line in split(execute('scriptnames'), '\n')
+    let m = matchlist(line, '^\s*\d\+: \(.*\)$')
+    if empty(m)
+      continue
+    endif
+    let path = tr(m[1], '\', '/')
+    let m = matchlist(path, 'autoload/nesk/mode/\(.*\).vim')
+    if empty(m)
+      continue
+    endif
+    let loaded_modes[m[1]] = 1
+  endfor
   for file in globpath(&rtp, 'autoload/nesk/mode/*.vim', 1, 1)
     let name = matchstr(tr(file, '\', '/'), 'autoload/nesk/mode/\zs.*\ze.vim')
-    if !has_key(s:SOURCED_MODES, name)
-      source `=file`
-      let err = nesk#mode#{name}#load(self)
-      if err isnot# s:Error.NIL
-        return s:Error.wrap(err, 'failed to load script ' . file)
-      endif
-      let s:SOURCED_MODES[name] = 1
+    if !has_key(loaded_modes, name)
+      try
+        source `=file`
+      catch
+        let err = s:Error.new(v:exception, v:throwpoint)
+        return s:Error.wrap(err, 'failed to load ' . name . ' mode')
+      endtry
+    endif
+    let fn = 'nesk#mode#' . name . '#load'
+    if !exists('*' . fn)
+      let msg = printf('mode %s was sourced but function %s was not defined', name, fn)
+      return s:Error.new(msg)
+    endif
+    let err = {fn}(self)
+    if err isnot# s:Error.NIL
+      return s:Error.wrap(err, fn . '() returned error')
     endif
   endfor
   return s:Error.NIL
