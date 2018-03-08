@@ -70,7 +70,7 @@ function! s:enable() abort
     autocmd!
     if s:KEEP_STATE
       " The return value of nesk.init_active_mode() was ignored
-      autocmd InsertLeave <buffer> call nesk#get_instance().init_active_mode()
+      autocmd InsertLeave <buffer> call s:init_if_enabled()
     else
       " The return value of nesk.init_active_mode() was ignored
       " but the return string value is already inserted to buffer at
@@ -81,6 +81,13 @@ function! s:enable() abort
   call s:map_keys(s:MAP_KEYS)
   " NOTE: Patch 8.0.1114 changed this default value
   setlocal imsearch=-1
+endfunction
+
+function! s:init_if_enabled() abort
+  let nesk = nesk#get_instance()
+  if nesk.is_enabled()
+    call nesk.init_active_mode()
+  endif
 endfunction
 
 function! nesk#disable() abort
