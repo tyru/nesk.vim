@@ -380,6 +380,10 @@ function! s:_TableNormalState_next(in, out) abort dict
         let bs = repeat("\<C-h>", strchars(self._key))
         let str = bs . pair[0] . pair[1] . c
         let self._key = pair[1] . c
+        let err = s:_convert_key_normal(self, a:in, a:out)
+        if err isnot# s:Error.NIL
+          return s:_error(a:state, a:in, err)
+        endif
       endif
     elseif len(cands) is# 1
       let bs = repeat("\<C-h>", strchars(self._key))
@@ -393,6 +397,22 @@ function! s:_TableNormalState_next(in, out) abort dict
     call s:_write(a:out, str)
     return [self, s:Error.NIL]
   endif
+endfunction
+
+function! s:_convert_key_normal(state, in, out) abort
+  while a:state._key isnot# ''
+    let [pair, err] = a:state._mode_table.get(a:state._key)
+    if err is# s:ERROR_NO_RESULTS
+      break
+    endif
+    if err isnot# s:Error.NIL
+      return err
+    endif
+    let bs = repeat("\<C-h>", strchars(a:state._key))
+    call s:_write(a:out, bs . pair[0] . pair[1])
+    let a:state._key = pair[1]
+  endwhile
+  return s:Error.NIL
 endfunction
 
 function! s:_handle_normal_mode_key(state, mode_name, in, out) abort
@@ -450,7 +470,7 @@ function! s:_TablePreeditingState_next1(in, out) abort dict
   if c is# "\<C-j>"
     if self._key isnot# ''
       " Commit self._buf
-      let err = s:_convert_key(self, a:in, a:out)
+      let err = s:_convert_key_preediting(self, a:in, a:out)
       if err isnot# s:Error.NIL
         return s:_error(self, a:in, err)
       endif
@@ -586,12 +606,12 @@ function! s:_TablePreeditingState_next1(in, out) abort dict
         let bs = repeat("\<C-h>", strchars(self._key))
         call s:_write(a:out, bs)
         let self._key = c
-        let err = s:_convert_key(self, a:in, a:out)
+        let err = s:_convert_key_preediting(self, a:in, a:out)
         if err isnot# s:Error.NIL
           return s:_error(self, a:in, err)
         endif
       else
-        let err = s:_convert_key(self, a:in, a:out)
+        let err = s:_convert_key_preediting(self, a:in, a:out)
         if err isnot# s:Error.NIL
           return s:_error(self, a:in, err)
         endif
@@ -605,7 +625,7 @@ function! s:_TablePreeditingState_next1(in, out) abort dict
       let self._buf += [pair[0]]
       let self._converted_key += [self._key . c]
       let self._key = pair[1]
-      let err = s:_convert_key(self, a:in, a:out)
+      let err = s:_convert_key_preediting(self, a:in, a:out)
       if err isnot# s:Error.NIL
         return s:_error(self, a:in, err)
       endif
@@ -641,7 +661,7 @@ endfunction
 
 " Convert self._key and append the result if succeeded
 " XXX: Detect recursive table mapping?
-function! s:_convert_key(state, in, out) abort
+function! s:_convert_key_preediting(state, in, out) abort
   let err = s:Error.NIL
   while a:state._key isnot# ''
     let [pair, err] = a:state._mode_table.get(a:state._key)
