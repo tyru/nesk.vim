@@ -205,7 +205,7 @@ function! s:_Nesk_get_mode(name) abort dict
   if mode is# s:Error.NIL
     return [s:Error.NIL, s:Error.new(printf('cannot load mode "%s"', a:name))]
   endif
-  return [deepcopy(mode), s:Error.NIL]
+  return [mode, s:Error.NIL]
 endfunction
 let s:Nesk.get_mode = function('s:_Nesk_get_mode')
 
