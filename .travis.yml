@@ -19,15 +19,18 @@ addons:
     packages:
       - language-pack-ja
       - vim
+      # - python-dev
+      # - python3-dev
+      # - python3-pip
       - liblua5.1-0-dev
       - lua5.1
 
 install:
   - bash _scripts/install-vim.sh
   - export PATH=$HOME/vim/bin:$PATH
-    # Install https://github.com/Vimjas/covimerage
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]] ; then brew install python3 ; fi
-  - pip3 install covimerage --user
+  # Install https://github.com/Vimjas/covimerage
+  # - if [[ "$TRAVIS_OS_NAME" == "osx" ]] ; then brew install python3 ; fi
+  # - pip3 install covimerage --user
 
 before_script:
   - git clone --depth 1 --branch v1.5.4 --single-branch https://github.com/thinca/vim-themis /tmp/vim-themis
