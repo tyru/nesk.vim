@@ -375,7 +375,7 @@ function! s:_TableNormalState_next(in, out) abort dict
       if err is# s:ERROR_NO_RESULTS
         let bs = repeat("\<C-h>", strchars(self._key))
         let str = bs . c
-        let self._key = c
+        let self._key = ''
       else
         let bs = repeat("\<C-h>", strchars(self._key))
         let str = bs . pair[0] . pair[1] . c
