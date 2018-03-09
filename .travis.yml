@@ -40,7 +40,7 @@ script:
   - which -a vim
   - vim --cmd version --cmd quit
   # - vim --cmd "try | helptags doc/ | catch | cquit | endtry" --cmd quit
-  - /tmp/vim-themis/bin/themis --reporter dot
+  - /tmp/vim-themis/bin/themis -r --reporter dot
 
 # after_success:
 #   - covimerage write_coverage $THEMIS_PROFILE
