@@ -73,7 +73,8 @@ function! s:_KanaState_next(in, out) abort dict
     let err = s:Error.wrap(err, 'Cannot load kana table')
     return s:_error(self, a:in, err)
   endif
-  return s:new_table_normal_state(self._nesk, self.name, table).next(a:in, a:out)
+  let state = s:new_table_normal_state(self._nesk, s:_simple_name(self.name), table)
+  return state.next(a:in, a:out)
 endfunction
 
 " }}}
@@ -94,7 +95,8 @@ function! s:_KataState_next(in, out) abort dict
     let err = s:Error.wrap(err, 'Cannot load kata table')
     return s:_error(self, a:in, err)
   endif
-  return s:new_table_normal_state(self._nesk, self.name, table).next(a:in, a:out)
+  let state = s:new_table_normal_state(self._nesk, s:_simple_name(self.name), table)
+  return state.next(a:in, a:out)
 endfunction
 
 " }}}
@@ -116,7 +118,8 @@ function! s:_HankataState_next(in, out) abort dict
     return s:_error(self, a:in, err)
   endif
 
-  return s:new_table_normal_state(self._nesk, self.name, table).next(a:in, a:out)
+  let state = s:new_table_normal_state(self._nesk, s:_simple_name(self.name), table)
+  return state.next(a:in, a:out)
 endfunction
 
 " }}}
@@ -266,13 +269,12 @@ endfunction
 
 " Table Normal State (kana, kata, hankata) {{{
 
-function! s:new_table_normal_state(nesk, name, mode_table) abort
+function! s:new_table_normal_state(nesk, simple_name, mode_table) abort
   return {
   \ '_nesk': a:nesk,
   \ '_mode_table': a:mode_table,
   \ '_key': '',
-  \ '_simple_name': a:name,
-  \ 'name': a:name . '/normal',
+  \ 'name': a:simple_name . '/normal',
   \ 'next': function('s:_TableNormalState_next'),
   \ 'commit': function('s:_TableNormalState_commit'),
   \}
@@ -350,7 +352,7 @@ function! s:_TableNormalState_next(in, out) abort dict
   elseif c is# 'Q'
     call a:in.unread()
     let state = s:new_table_preediting_state(
-    \ self._nesk, self.name, self._mode_table, s:PREEDITING_MARKER
+    \ self._nesk, s:_simple_name(self.name), self._mode_table, s:PREEDITING_MARKER
     \)
     return [state, s:Error.NIL]
   elseif c =~# '^[A-Z]$'
@@ -449,7 +451,6 @@ function! s:new_table_preediting_state(nesk, simple_name, mode_table, marker) ab
   \ '_key': '',
   \ '_converted_key': [],
   \ '_buf': [],
-  \ '_simple_name': a:simple_name,
   \ 'name': a:simple_name . '/preediting',
   \ 'next': function('s:_TablePreeditingState_next0'),
   \ 'commit': function('s:_TablePreeditingState_commit'),
@@ -481,7 +482,7 @@ function! s:_TablePreeditingState_next1(in, out) abort dict
     let bs = repeat("\<C-h>", strchars(self._marker . buf))
     call s:_write(a:out, bs . buf)
     let state = s:new_table_normal_state(
-    \ self._nesk, self._simple_name, self._mode_table
+    \ self._nesk, s:_simple_name(self.name), self._mode_table
     \)
     return [state, s:Error.NIL]
   elseif c is# "\<CR>"
@@ -511,7 +512,7 @@ function! s:_TablePreeditingState_next1(in, out) abort dict
     let bs = repeat("\<C-h>", strchars(self._marker . buf))
     call s:_write(a:out, bs . buf)
     let state = s:new_table_normal_state(
-    \ self._nesk, self._simple_name, self._mode_table
+    \ self._nesk, s:_simple_name(self.name), self._mode_table
     \)
     return [state, s:Error.NIL]
   elseif c is# "\x80"    " backspace is \x80 k b
@@ -541,7 +542,7 @@ function! s:_TablePreeditingState_next1(in, out) abort dict
     endif
     " Back to TableNormalState
     let state = s:new_table_normal_state(
-    \ self._nesk, self._simple_name, self._mode_table
+    \ self._nesk, s:_simple_name(self.name), self._mode_table
     \)
     return [state, s:Error.NIL]
   elseif c is# 'l'
@@ -696,8 +697,7 @@ function! s:new_kanji_convert_state(nesk, dict_table, prev_state, prev_inserted,
   \ '_key': a:key,
   \ '_marker': a:marker,
   \ '_mode_table': a:mode_table,
-  \ '_simple_name': a:prev_state._simple_name,
-  \ 'name': a:prev_state._simple_name . '/kanji',
+  \ 'name': s:_simple_name(a:prev_state.name) . '/kanji',
   \ 'next': function('s:_KanjiConvertState_next0'),
   \}
 endfunction
@@ -725,7 +725,6 @@ function! s:_KanjiConvertState_next0(in, out) abort dict
   \ '_mode_table': self._mode_table,
   \ '_candidates': candidates,
   \ '_cand_idx': 0,
-  \ '_simple_name': self._prev_state._simple_name,
   \ 'name': self._prev_state.name,
   \ 'next': function('s:_KanjiConvertState_next1'),
   \}
@@ -742,7 +741,7 @@ function! s:_KanjiConvertState_next1(in, out) abort dict
     call s:_write(a:out, bs . cand)
     " Back to TableNormalState
     let state = s:new_table_normal_state(
-    \ self._nesk, self._prev_state._simple_name, self._mode_table
+    \ self._nesk, s:_simple_name(self._prev_state.name), self._mode_table
     \)
     return [state, s:Error.NIL]
   elseif c is# "\<CR>"
@@ -814,8 +813,7 @@ function! s:new_register_dict_state(nesk, prev_state, key, head_marker, left_mar
   \ '_head_marker': a:head_marker,
   \ '_left_marker': a:left_marker,
   \ '_right_marker': a:right_marker,
-  \ '_simple_name': a:prev_state._simple_name,
-  \ 'name': a:prev_state._simple_name . '/registering',
+  \ 'name': s:_simple_name(a:prev_state.name) . '/registering',
   \ 'next': function('s:_RegisterDictState_next0'),
   \}
 endfunction
@@ -834,14 +832,12 @@ function! s:_RegisterDictState_next0(in, out) abort dict
     let err = s:Error.wrap(err, 'Cannot load ' . s:SKKDICT_TABLES.name . ' table')
     return s:_error(self, a:in, err)
   endif
-  " TODO: name
   let state = {
   \ '_key': self._key,
   \ '_prev_state': self._prev_state,
   \ '_sub_state': s:new_kana_mode(self._nesk),
   \ '_bw': s:V.import('Nesk.IO.VimBufferWriter').new(),
   \ '_skkdict': skkdict,
-  \ '_simple_name': self._prev_state._simple_name,
   \ 'name': self._prev_state.name,
   \ 'next': function('s:_RegisterDictState_next1'),
   \}
@@ -893,6 +889,14 @@ endfunction
 function! s:_error(state, in, err) abort
   call a:in.unread()
   return [s:Nesk.new_reset_mode_state(a:state.name), a:err]
+endfunction
+
+function! s:_simple_name(name) abort
+  let simple = matchstr(a:name, '^[^/]\+/[^/]\+')
+  if simple is# ''
+    throw 'Nesk.Mode.SKK: could not convert to simple name: ' . string(a:name)
+  endif
+  return simple
 endfunction
 
 
