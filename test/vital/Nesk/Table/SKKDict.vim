@@ -1,5 +1,5 @@
 
-let s:suite = themis#suite('skkdict')
+let s:suite = themis#suite('Nesk.Table.SKKDict')
 let s:assert = themis#helper('assert')
 
 function! s:suite.before()
