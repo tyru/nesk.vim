@@ -8,19 +8,8 @@ function! nesk#init#mode#skk#load(nesk) abort
   let V = vital#nesk#new()
   let SKK = V.import('Nesk.Mode.SKK')
   let Error = V.import('Nesk.Error')
-  " Define table builders
-  for builder in
-  \ [SKK.new_kana_table_builder()] +
-  \ [SKK.new_kata_table_builder()] +
-  \ [SKK.new_hankata_table_builder()] +
-  \ [SKK.new_zenei_table_builder()] +
-  \ SKK.new_skkdict_table_builders()
-    let err = a:nesk.add_table_builder(builder)
-    if err isnot# Error.NIL
-      return Error.wrap(err, 'failed to define ' . name . ' table')
-    endif
-  endfor
-  " Define modes
+  let merr = Error.new_multi()
+  " Add modes
   for mode in [
   \ SKK.new_kana_mode(a:nesk),
   \ SKK.new_kata_mode(a:nesk),
@@ -32,10 +21,11 @@ function! nesk#init#mode#skk#load(nesk) abort
     if err isnot# Error.NIL
       let name = type(a:mode) is# v:t_dict && get(a:mode, 'name', '???')
       let name = type(name) isnot# v:t_string ? '???' : name
-      return Error.wrap(err, 'failed to define ' . name . ' mode')
+      let err = Error.wrap(err, 'failed to add ' . name . ' mode')
+      let merr = Error.append(merr, err)
     endif
   endfor
-  return Error.NIL
+  return merr
 endfunction
 
 
