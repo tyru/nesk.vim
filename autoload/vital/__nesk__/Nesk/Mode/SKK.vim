@@ -40,16 +40,16 @@ let s:REGDICT_LEFT_MARKER = '【'
 let s:REGDICT_RIGHT_MARKER = '】'
 
 
-function! s:new_kana_mode(nesk) abort
+function! s:new_hira_mode(nesk) abort
   return {
   \ '_nesk': a:nesk,
   \ 'name': 'skk/kana',
-  \ 'next': function('s:_KanaState_next'),
+  \ 'next': function('s:_HiraState_next'),
   \}
 endfunction
 
 " Set up kana mode: define tables, and change state to TableNormalState.
-function! s:_KanaState_next(in, out) abort dict
+function! s:_HiraState_next(in, out) abort dict
   let [table, err] = self._nesk.get_table('japanese/hiragana')
   if err isnot# s:Error.NIL
     let err = s:Error.wrap(err, 'Cannot load kana table')
@@ -251,10 +251,10 @@ function! s:_TableNormalState_next(in, out) abort dict
   elseif c is# 'L'
     return s:_handle_normal_mode_key(self, 'skk/zenei', a:in, a:out)
   elseif c is# 'q'
-    let mode = self.name is# 'skk/kana' ? s:new_kata_mode(self._nesk) : s:new_kana_mode(self._nesk)
+    let mode = self.name is# 'skk/kana' ? s:new_kata_mode(self._nesk) : s:new_hira_mode(self._nesk)
     return s:_handle_normal_table_key(self, mode, a:in, a:out)
   elseif c is# "\<C-q>"
-    let mode = self.name is# 'skk/kana' ? s:new_hankata_mode(self._nesk) : s:new_kana_mode(self._nesk)
+    let mode = self.name is# 'skk/kana' ? s:new_hankata_mode(self._nesk) : s:new_hira_mode(self._nesk)
     return s:_handle_normal_table_key(self, mode, a:in, a:out)
   elseif c is# 'Q'
     call a:in.unread()
@@ -557,7 +557,7 @@ function! s:_send_converted_key_in_kana_state(state, in, out, enter_char, back_c
   endif
 
   " Send a:state._converted_key in the certain mode again
-  let state = s:new_kana_mode(a:state._nesk)
+  let state = s:new_hira_mode(a:state._nesk)
   while in.size() ># 0
     let [state, err] = state.next(in, a:out)
     if err isnot# s:Error.NIL
@@ -742,7 +742,7 @@ function! s:_RegisterDictState_next0(in, out) abort dict
   let state = {
   \ '_key': self._key,
   \ '_prev_state': self._prev_state,
-  \ '_sub_state': s:new_kana_mode(self._nesk),
+  \ '_sub_state': s:new_hira_mode(self._nesk),
   \ '_bw': s:V.import('Nesk.IO.VimBufferWriter').new(),
   \ '_skkdict': skkdict,
   \ 'name': self._prev_state.name,

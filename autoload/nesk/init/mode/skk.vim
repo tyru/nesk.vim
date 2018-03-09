@@ -11,7 +11,7 @@ function! nesk#init#mode#skk#load(nesk) abort
   let merr = Error.new_multi()
   " Add modes
   for mode in [
-  \ SKK.new_kana_mode(a:nesk),
+  \ SKK.new_hira_mode(a:nesk),
   \ SKK.new_kata_mode(a:nesk),
   \ SKK.new_hankata_mode(a:nesk),
   \ SKK.new_ascii_mode(a:nesk),
