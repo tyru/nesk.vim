@@ -15,7 +15,7 @@ function! nesk#init#mode#skk#load(nesk) abort
   \ [SKK.new_hankata_table_builder()] +
   \ [SKK.new_zenei_table_builder()] +
   \ SKK.new_skkdict_table_builders()
-    let err = a:nesk.define_table_builder(builder)
+    let err = a:nesk.add_table_builder(builder)
     if err isnot# Error.NIL
       return Error.wrap(err, 'failed to define ' . name . ' table')
     endif
@@ -28,7 +28,7 @@ function! nesk#init#mode#skk#load(nesk) abort
   \ SKK.new_ascii_mode(a:nesk),
   \ SKK.new_zenei_mode(a:nesk),
   \]
-    let err = a:nesk.define_mode(mode)
+    let err = a:nesk.add_mode(mode)
     if err isnot# Error.NIL
       let name = type(a:mode) is# v:t_dict && get(a:mode, 'name', '???')
       let name = type(name) isnot# v:t_string ? '???' : name

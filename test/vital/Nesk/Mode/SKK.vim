@@ -69,11 +69,11 @@ function! s:suite.__convert__()
       call s:assert.equals(str, out, printf('nesk#convert(): %s => %s', in, out))
 
       let [str, err] = s:INSTANCE.send(in)
-      call s:assert.same(err, s:Error.NIL, 'Nesk.init_active_mode()')
+      call s:assert.same(err, s:Error.NIL, 'Nesk.reset_active_mode()')
       call s:assert.equals(str, outraw, printf('Nesk.send(): %s => %s', in, outraw))
 
-      let err = s:INSTANCE.init_active_mode()
-      call s:assert.same(err, s:Error.NIL, 'Nesk.init_active_mode()')
+      let err = s:INSTANCE.reset_active_mode()
+      call s:assert.same(err, s:Error.NIL, 'Nesk.reset_active_mode()')
     endfor
   endfunction
 

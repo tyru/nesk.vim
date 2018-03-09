@@ -7,7 +7,7 @@ set cpo&vim
 function! nesk#init#mode#direct#load(nesk) abort
   let V = vital#nesk#new()
   let s:Error = V.import('Nesk.Error')
-  let err = a:nesk.define_mode(s:new_direct_mode())
+  let err = a:nesk.add_mode(s:new_direct_mode())
   if err isnot# s:Error.NIL
     return s:Error.wrap(err, 'failed to define direct mode')
   endif
