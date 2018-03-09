@@ -13,7 +13,7 @@ function! s:suite.__convert__()
 
   function! suite.before_each() abort
     let s:INSTANCE = s:Nesk.new()
-    let err = s:INSTANCE.load_modes_in_rtp()
+    let err = s:INSTANCE.load_init()
     call s:assert.same(err, s:Error.NIL)
     let err = s:INSTANCE.enable()
     call s:assert.same(err, s:Error.NIL)

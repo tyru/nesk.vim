@@ -4,7 +4,7 @@ let s:save_cpo = &cpo
 set cpo&vim
 
 
-function! nesk#mode#skk#load(nesk) abort
+function! nesk#init#mode#skk#load(nesk) abort
   let V = vital#nesk#new()
   let SKK = V.import('Nesk.Mode.SKK')
   let Error = V.import('Nesk.Error')

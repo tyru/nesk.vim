@@ -106,33 +106,33 @@ function! s:_Nesk_is_enabled() abort dict
 endfunction
 let s:Nesk.is_enabled = function('s:_Nesk_is_enabled')
 
-function! s:_Nesk_load_modes_in_rtp() abort dict
-  let loaded_modes = {}
+function! s:_Nesk_load_init() abort dict
+  let loaded = {}
   for line in split(execute('scriptnames'), '\n')
     let m = matchlist(line, '^\s*\d\+: \(.*\)$')
     if empty(m)
       continue
     endif
     let path = tr(m[1], '\', '/')
-    let m = matchlist(path, '/autoload/nesk/mode/\(.*\).vim$')
+    let m = matchlist(path, '/autoload/nesk/init/\(.*\).vim$')
     if empty(m)
       continue
     endif
-    let loaded_modes[m[1]] = 1
+    let loaded[m[1]] = 1
   endfor
-  for file in globpath(&rtp, '/autoload/nesk/mode/*.vim', 1, 1)
-    let name = matchstr(tr(file, '\', '/'), '/autoload/nesk/mode/\zs.*\ze.vim$')
-    if !has_key(loaded_modes, name)
+  for file in globpath(&rtp, 'autoload/nesk/init/**/*.vim', 1, 1)
+    let name = matchstr(tr(file, '\', '/'), '/autoload/nesk/init/\zs.*\ze.vim$')
+    if !has_key(loaded, name)
       try
         source `=file`
       catch
         let err = s:Error.new(v:exception, v:throwpoint)
-        return s:Error.wrap(err, 'failed to load ' . name . ' mode')
+        return s:Error.wrap(err, 'failed to load ' . file)
       endtry
     endif
-    let fn = 'nesk#mode#' . name . '#load'
+    let fn = 'nesk#init#' . tr(name, '/', '#') . '#load'
     if !exists('*' . fn)
-      let msg = printf('mode %s was sourced but function %s was not defined', name, fn)
+      let msg = printf('%s was sourced but function %s was not defined', file, fn)
       return s:Error.new(msg)
     endif
     let err = {fn}(self)
@@ -142,7 +142,7 @@ function! s:_Nesk_load_modes_in_rtp() abort dict
   endfor
   return s:Error.NIL
 endfunction
-let s:Nesk.load_modes_in_rtp = function('s:_Nesk_load_modes_in_rtp')
+let s:Nesk.load_init = function('s:_Nesk_load_init')
 
 function! s:_Nesk_init_active_mode() abort dict
   if !self.is_enabled()
