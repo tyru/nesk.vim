@@ -39,6 +39,8 @@ function! s:suite.__convert__()
     \ ["ab\<BS>c", 'あc', "あb\<C-h>c"],
     \ ["\<C-h>c", "\<C-h>c", "\<C-h>c"],
     \ ["\<C-h>\<C-h>c", "\<C-h>\<C-h>c", "\<C-h>\<C-h>c"],
+    \ ["aK\<C-h>\<C-h>", "あ", "あ▽k\<C-h>\<C-h>"],
+    \ ["aKa\<C-h>\<C-h>", "あ", "あ▽k\<C-h>か\<C-h>\<C-h>"],
     \
     \ ['Kekkonq(Kariq)', 'ケッコン(カリ)', "▽k\<C-h>けk\<C-h>っk\<C-h>こn\<C-h>\<C-h>\<C-h>\<C-h>\<C-h>ケッコン(▽k\<C-h>かr\<C-h>り\<C-h>\<C-h>\<C-h>カリ)"],
     \ ['Qkekkonq(Qkariq)', 'ケッコン(カリ)', "▽k\<C-h>けk\<C-h>っk\<C-h>こn\<C-h>\<C-h>\<C-h>\<C-h>ケッコン(k\<C-h>かr\<C-h>り\<C-h>\<C-h>カリ)"],
@@ -63,14 +65,14 @@ function! s:suite.__convert__()
     \]
       let [str, err] = s:INSTANCE.convert(in)
       call s:assert.same(err, s:Error.NIL)
-      call s:assert.equals(str, out, printf('Nesk.convert(): %s => %s', in, out))
+      call s:assert.equals(str, out, printf('Nesk.convert(): %s => %s', strtrans(in), strtrans(out)))
 
       let str = nesk#convert(in)
-      call s:assert.equals(str, out, printf('nesk#convert(): %s => %s', in, out))
+      call s:assert.equals(str, out, printf('nesk#convert(): %s => %s', strtrans(in), strtrans(out)))
 
       let [str, err] = s:INSTANCE.send(in)
       call s:assert.same(err, s:Error.NIL, 'Nesk.reset_active_mode()')
-      call s:assert.equals(str, outraw, printf('Nesk.send(): %s => %s', in, outraw))
+      call s:assert.equals(str, outraw, printf('Nesk.send(): %s => %s', strtrans(in), strtrans(outraw)))
 
       let err = s:INSTANCE.reset_active_mode()
       call s:assert.same(err, s:Error.NIL, 'Nesk.reset_active_mode()')
