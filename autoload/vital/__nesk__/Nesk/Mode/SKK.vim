@@ -874,9 +874,9 @@ endfunction
 function! s:_read_char(in) abort
   let [c, err] = a:in.read_char()
   if !s:Error.is_error(err)
-    throw 'a:in.read_char() returned non-error object: ' . string(err)
+    throw 'Nesk.Mode.SKK: a:in.read_char() returned non-error object: ' . string(err)
   elseif err isnot# s:Error.NIL
-    throw err.exception . ' @ ' . err.throwpoint
+    throw 'Nesk.Mode.SKK: ' . err.exception . ' @ ' . err.throwpoint
   endif
   return c
 endfunction
@@ -884,9 +884,9 @@ endfunction
 function! s:_write(out, str) abort
   let err = a:out.write(a:str)
   if !s:Error.is_error(err)
-    throw 'a:out.write() returned non-error object: ' . string(err)
+    throw 'Nesk.Mode.SKK: a:out.write() returned non-error object: ' . string(err)
   elseif err isnot# s:Error.NIL
-    throw err.exception . ' @ ' . err.throwpoint
+    throw 'Nesk.Mode.SKK: ' . err.exception . ' @ ' . err.throwpoint
   endif
 endfunction
 
