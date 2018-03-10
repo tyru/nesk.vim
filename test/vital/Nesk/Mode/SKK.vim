@@ -22,6 +22,7 @@ function! s:suite.__convert__()
   function! suite.basic() abort
     for [in, out, outraw] in [
     \ ['a', 'あ', 'あ'],
+    \ ['kayu uma', 'かゆ うま', "k\<C-h>かy\<C-h>ゆ うm\<C-h>ま"],
     \ ['u ma', 'う ま', "う m\<C-h>ま"],
     \ ['ka', 'か', "k\<C-h>か"],
     \ ['kya', 'きゃ', "ky\<C-h>\<C-h>きゃ"],
@@ -31,6 +32,8 @@ function! s:suite.__convert__()
     \ ['kan''ji', 'かんじ', "k\<C-h>かn\<C-h>んj\<C-h>じ"],
     \ ['kekkon', 'けっこn', "k\<C-h>けk\<C-h>っk\<C-h>こn"],
     \ ['kekkonn', 'けっこん', "k\<C-h>けk\<C-h>っk\<C-h>こn\<C-h>ん"],
+    \ ['kekkonsiyo', 'けっこんしよ', "k\<C-h>けk\<C-h>っk\<C-h>こn\<C-h>んs\<C-h>しy\<C-h>よ"],
+    \ ['kekkonnsiyo', 'けっこんしよ', "k\<C-h>けk\<C-h>っk\<C-h>こn\<C-h>んs\<C-h>しy\<C-h>よ"],
     \ ["ky\<C-h>a", 'か', "ky\<C-h>\<C-h>か"],
     \ ['www', 'っっw', "w\<C-h>っw\<C-h>っw"],
     \ ["ab\<C-h>c", 'あc', "あb\<C-h>c"],
