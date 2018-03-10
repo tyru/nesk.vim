@@ -70,7 +70,7 @@ function! s:enable() abort
     autocmd!
     if s:KEEP_STATE
       " The return value of nesk.reset_active_mode() was ignored
-      autocmd InsertLeave <buffer> call s:init_if_enabled()
+      autocmd InsertLeave <buffer> call s:reset_if_enabled()
     else
       " The return value of nesk.reset_active_mode() was ignored
       " but the return string value is already inserted to buffer at
@@ -83,7 +83,7 @@ function! s:enable() abort
   setlocal imsearch=-1
 endfunction
 
-function! s:init_if_enabled() abort
+function! s:reset_if_enabled() abort
   let nesk = nesk#get_instance()
   if nesk.is_enabled()
     call nesk.reset_active_mode()
