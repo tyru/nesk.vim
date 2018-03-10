@@ -70,7 +70,6 @@ function! s:_Nesk_enable() abort dict
   if err isnot# s:Error.NIL
     return err
   endif
-  let self._states[mode_name] = mode
   " Reset self._active_mode_name because self.set_active_mode_name() will fail
   " if self._active_mode_name == mode_name
   let self._active_mode_name = ''
@@ -83,9 +82,9 @@ function! s:_Nesk_disable() abort dict
     return ['', s:Error.NIL]
   endif
   let committed = ''
-  let [states, err] = self.get_active_states()
-  if err is# s:Error.NIL && has_key(states[-1], 'commit')
-    let committed = states[-1].commit()
+  let [state, err] = self.get_active_state()
+  if err is# s:Error.NIL && has_key(state, 'commit')
+    let committed = state.commit()
   endif
   let self._states = {}
   let self._active_mode_name = ''
@@ -153,7 +152,7 @@ function! s:_Nesk_reset_active_mode() abort dict
   if err isnot# s:Error.NIL
     return err
   endif
-  let self._states[mode_name] = [mode]
+  let self._states[mode_name] = mode
   return s:Error.NIL
 endfunction
 let s:Nesk.reset_active_mode = function('s:_Nesk_reset_active_mode')
@@ -179,23 +178,33 @@ function! s:_Nesk_set_active_mode_name(name) abort dict
   endif
   let old = self._active_mode_name
   let self._active_mode_name = a:name
-  let self._states[a:name] = [mode]
+  let self._states[a:name] = mode
   return s:Error.NIL
 endfunction
 let s:Nesk.set_active_mode_name = function('s:_Nesk_set_active_mode_name')
 
-function! s:_Nesk_get_active_states() abort dict
+function! s:_Nesk_get_active_state() abort dict
   let [mode_name, err] = self.get_active_mode_name()
   if err isnot# s:Error.NIL
     return [s:Error.NIL, err]
   endif
-  let states = get(self._states, mode_name, [])
-  if empty(states)
+  let state = get(self._states, mode_name, s:Error.NIL)
+  if state is# s:Error.NIL
     return [s:Error.NIL, s:Error.new('no active state')]
   endif
-  return [states, s:Error.NIL]
+  return [state, s:Error.NIL]
 endfunction
-let s:Nesk.get_active_states = function('s:_Nesk_get_active_states')
+let s:Nesk.get_active_state = function('s:_Nesk_get_active_state')
+
+function! s:_Nesk_set_active_state(state) abort dict
+  let [mode_name, err] = self.get_active_mode_name()
+  if err isnot# s:Error.NIL
+    return err
+  endif
+  let self._states[mode_name] = a:state
+  return s:Error.NIL
+endfunction
+let s:Nesk.set_active_state = function('s:_Nesk_set_active_state')
 
 function! s:_Nesk_get_mode(name) abort dict
   let mode = get(self._modes, a:name, s:Error.NIL)
@@ -332,17 +341,17 @@ function! s:_default_builder(table) abort
 endfunction
 
 function! s:_Nesk_send(str) abort dict
-  let [states, err] = self.get_active_states()
+  let [state, err] = self.get_active_state()
   if err isnot# s:Error.NIL
     return ['', err]
   endif
-  let state = states[-1]
   let in = s:StringReader.new(a:str)
   let out = s:StringWriter.new()
   try
     let [state, err] = self.transit(state, in, out)
     if err is# s:Error.NIL
-      let states[-1] = state
+      let state = state
+      call self.set_active_state(state)
       return [out.to_string(), s:Error.NIL]
     endif
   catch
