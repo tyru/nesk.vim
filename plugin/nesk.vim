@@ -8,10 +8,10 @@ if exists('g:loaded_nesk') && g:loaded_nesk
 endif
 let g:loaded_nesk = 1
 
-if v:version < 704
+if v:version < 800
   echohl ErrorMsg
   echomsg 'nesk.vim: warning: Your Vim is too old.'
-  \       'Please use 7.4 at least.'
+  \       'Please use 8.0 at least.'
   echohl None
 endif
 
