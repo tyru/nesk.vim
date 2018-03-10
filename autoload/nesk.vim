@@ -94,16 +94,21 @@ function! nesk#disable() abort
   call s:disable()
   redrawstatus
 
+  " NOTE: Vim can't enter lang-mode immediately
+  " in insert-mode or commandline-mode.
+  " We have to use i_CTRL-^ .
+  let disable = &l:iminsert isnot# 1 ? "\<C-^>" : ''
+
   if nesk#get_instance().is_enabled()
     let [str, err] = nesk#get_instance().disable()
     if err isnot# s:Error.NIL
       call s:echomsg('ErrorMsg', err.exception . ' at ' . err.throwpoint)
       sleep 2
-      return ''
+      return disable
     endif
-    return str
+    return disable . str
   endif
-  return ''
+  return disable
 endfunction
 
 function! s:disable() abort
@@ -111,7 +116,6 @@ function! s:disable() abort
     autocmd!
   augroup END
   call s:unmap_keys(s:MAP_KEYS)
-  setlocal iminsert=0 imsearch=0
 endfunction
 
 function! nesk#toggle() abort

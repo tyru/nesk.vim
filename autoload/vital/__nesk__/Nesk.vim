@@ -89,10 +89,7 @@ function! s:_Nesk_disable() abort dict
   endif
   let self._states = {}
   let self._active_mode_name = ''
-  " NOTE: Vim can't escape lang-mode immediately
-  " in insert-mode or commandline-mode.
-  " We have to use i_CTRL-^ .
-  return [committed . "\<C-^>", s:Error.NIL]
+  return [committed, s:Error.NIL]
 endfunction
 let s:Nesk.disable = function('s:_Nesk_disable')
 
