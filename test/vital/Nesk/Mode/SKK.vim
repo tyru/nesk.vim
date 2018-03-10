@@ -13,7 +13,7 @@ function! s:suite.__convert__()
 
   function! suite.before_each() abort
     let s:INSTANCE = s:Nesk.new()
-    let err = s:INSTANCE.load_modes_in_rtp()
+    let err = s:INSTANCE.load_init()
     call s:assert.same(err, s:Error.NIL)
     let err = s:INSTANCE.enable()
     call s:assert.same(err, s:Error.NIL)
@@ -22,6 +22,7 @@ function! s:suite.__convert__()
   function! suite.basic() abort
     for [in, out, outraw] in [
     \ ['a', 'あ', 'あ'],
+    \ ['kayu uma', 'かゆ うま', "k\<C-h>かy\<C-h>ゆ うm\<C-h>ま"],
     \ ['u ma', 'う ま', "う m\<C-h>ま"],
     \ ['ka', 'か', "k\<C-h>か"],
     \ ['kya', 'きゃ', "ky\<C-h>\<C-h>きゃ"],
@@ -31,6 +32,8 @@ function! s:suite.__convert__()
     \ ['kan''ji', 'かんじ', "k\<C-h>かn\<C-h>んj\<C-h>じ"],
     \ ['kekkon', 'けっこn', "k\<C-h>けk\<C-h>っk\<C-h>こn"],
     \ ['kekkonn', 'けっこん', "k\<C-h>けk\<C-h>っk\<C-h>こn\<C-h>ん"],
+    \ ['kekkonsiyo', 'けっこんしよ', "k\<C-h>けk\<C-h>っk\<C-h>こn\<C-h>んs\<C-h>しy\<C-h>よ"],
+    \ ['kekkonnsiyo', 'けっこんしよ', "k\<C-h>けk\<C-h>っk\<C-h>こn\<C-h>んs\<C-h>しy\<C-h>よ"],
     \ ["ky\<C-h>a", 'か', "ky\<C-h>\<C-h>か"],
     \ ['www', 'っっw', "w\<C-h>っw\<C-h>っw"],
     \ ["ab\<C-h>c", 'あc', "あb\<C-h>c"],
@@ -39,6 +42,8 @@ function! s:suite.__convert__()
     \ ["ab\<BS>c", 'あc', "あb\<C-h>c"],
     \ ["\<C-h>c", "\<C-h>c", "\<C-h>c"],
     \ ["\<C-h>\<C-h>c", "\<C-h>\<C-h>c", "\<C-h>\<C-h>c"],
+    \ ["aK\<C-h>\<C-h>", "あ", "あ▽k\<C-h>\<C-h>"],
+    \ ["aKa\<C-h>\<C-h>", "あ", "あ▽k\<C-h>か\<C-h>\<C-h>"],
     \
     \ ['Kekkonq(Kariq)', 'ケッコン(カリ)', "▽k\<C-h>けk\<C-h>っk\<C-h>こn\<C-h>\<C-h>\<C-h>\<C-h>\<C-h>ケッコン(▽k\<C-h>かr\<C-h>り\<C-h>\<C-h>\<C-h>カリ)"],
     \ ['Qkekkonq(Qkariq)', 'ケッコン(カリ)', "▽k\<C-h>けk\<C-h>っk\<C-h>こn\<C-h>\<C-h>\<C-h>\<C-h>ケッコン(k\<C-h>かr\<C-h>り\<C-h>\<C-h>カリ)"],
@@ -63,17 +68,17 @@ function! s:suite.__convert__()
     \]
       let [str, err] = s:INSTANCE.convert(in)
       call s:assert.same(err, s:Error.NIL)
-      call s:assert.equals(str, out, printf('Nesk.convert(): %s => %s', in, out))
+      call s:assert.equals(str, out, printf('Nesk.convert(): %s => %s', strtrans(in), strtrans(out)))
 
       let str = nesk#convert(in)
-      call s:assert.equals(str, out, printf('nesk#convert(): %s => %s', in, out))
+      call s:assert.equals(str, out, printf('nesk#convert(): %s => %s', strtrans(in), strtrans(out)))
 
       let [str, err] = s:INSTANCE.send(in)
-      call s:assert.same(err, s:Error.NIL, 'Nesk.init_active_mode()')
-      call s:assert.equals(str, outraw, printf('Nesk.send(): %s => %s', in, outraw))
+      call s:assert.same(err, s:Error.NIL, 'Nesk.reset_active_mode()')
+      call s:assert.equals(str, outraw, printf('Nesk.send(): %s => %s', strtrans(in), strtrans(outraw)))
 
-      let err = s:INSTANCE.init_active_mode()
-      call s:assert.same(err, s:Error.NIL, 'Nesk.init_active_mode()')
+      let err = s:INSTANCE.reset_active_mode()
+      call s:assert.same(err, s:Error.NIL, 'Nesk.reset_active_mode()')
     endfor
   endfunction
 

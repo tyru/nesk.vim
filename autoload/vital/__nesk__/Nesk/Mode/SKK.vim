@@ -4,6 +4,8 @@ let s:save_cpo = &cpo
 set cpo&vim
 
 
+" vital {{{
+
 function! s:_vital_loaded(V) abort
   let s:V = a:V
   let s:Nesk = a:V.import('Nesk')
@@ -21,35 +23,15 @@ function! s:_vital_depends() abort
   \ 'Nesk.IO.MultiWriter',
   \ 'Nesk.IO.VimBufferWriter',
   \ 'Nesk.Table',
-  \ 'Nesk.Table.Kana',
-  \ 'Nesk.Table.Kata',
-  \ 'Nesk.Table.Hankata',
-  \ 'Nesk.Table.Zenei',
   \ 'Nesk.Table.SKKDict',
   \]
 endfunction
 
+" }}}
+
 " 'kana' mode {{{
 
 " TODO: Global variable
-let s:SKKDICT_TABLES = {
-\ 'name': 'skkdict',
-\ 'reg_dict_index': 0,
-\ 'tables': [
-\   {
-\     'name': 'skkdict/user-dict',
-\     'path': expand('~/.skkdict/user-dict'),
-\     'sorted': 0,
-\     'encoding': 'utf-8'
-\   },
-\   {
-\     'name': 'skkdict/system-dict',
-\     'path': expand('~/.skkdict/system-dict'),
-\     'sorted': 1,
-\     'encoding': 'euc-jp'
-\   }
-\ ]
-\}
 let s:PREEDITING_MARKER = "▽"
 let s:OKURI_MARKER = "▼"
 let s:CONVERT_MARKER = "▼"
@@ -58,22 +40,23 @@ let s:REGDICT_LEFT_MARKER = '【'
 let s:REGDICT_RIGHT_MARKER = '】'
 
 
-function! s:new_kana_mode(nesk) abort
+function! s:new_hira_mode(nesk) abort
   return {
   \ '_nesk': a:nesk,
   \ 'name': 'skk/kana',
-  \ 'next': function('s:_KanaState_next'),
+  \ 'next': function('s:_HiraState_next'),
   \}
 endfunction
 
 " Set up kana mode: define tables, and change state to TableNormalState.
-function! s:_KanaState_next(in, out) abort dict
-  let [table, err] = self._nesk.get_table('kana')
+function! s:_HiraState_next(in, out) abort dict
+  let [table, err] = self._nesk.get_table('japanese/hiragana')
   if err isnot# s:Error.NIL
     let err = s:Error.wrap(err, 'Cannot load kana table')
     return s:_error(self, a:in, err)
   endif
-  return s:new_table_normal_state(self._nesk, self.name, table).next(a:in, a:out)
+  let state = s:new_table_normal_state(self._nesk, s:_simple_name(self.name), table)
+  return state.next(a:in, a:out)
 endfunction
 
 " }}}
@@ -89,12 +72,13 @@ function! s:new_kata_mode(nesk) abort
 endfunction
 
 function! s:_KataState_next(in, out) abort dict
-  let [table, err] = self._nesk.get_table('kata')
+  let [table, err] = self._nesk.get_table('japanese/katakana')
   if err isnot# s:Error.NIL
     let err = s:Error.wrap(err, 'Cannot load kata table')
     return s:_error(self, a:in, err)
   endif
-  return s:new_table_normal_state(self._nesk, self.name, table).next(a:in, a:out)
+  let state = s:new_table_normal_state(self._nesk, s:_simple_name(self.name), table)
+  return state.next(a:in, a:out)
 endfunction
 
 " }}}
@@ -110,13 +94,14 @@ function! s:new_hankata_mode(nesk) abort
 endfunction
 
 function! s:_HankataState_next(in, out) abort dict
-  let [table, err] = self._nesk.get_table('hankata')
+  let [table, err] = self._nesk.get_table('japanese/hankata')
   if err isnot# s:Error.NIL
     let err = s:Error.wrap(err, 'Cannot load hankata table')
     return s:_error(self, a:in, err)
   endif
 
-  return s:new_table_normal_state(self._nesk, self.name, table).next(a:in, a:out)
+  let state = s:new_table_normal_state(self._nesk, s:_simple_name(self.name), table)
+  return state.next(a:in, a:out)
 endfunction
 
 " }}}
@@ -156,7 +141,7 @@ function! s:new_zenei_mode(nesk) abort
 endfunction
 
 function! s:_ZeneiTable_next0(in, out) abort dict
-  let [table, err] = self._nesk.get_table('zenei')
+  let [table, err] = self._nesk.get_table('japanese/zenei')
   if err isnot# s:Error.NIL
     let err = s:Error.wrap(err, 'Cannot load zenei table')
     return s:_error(self, a:in, err)
@@ -189,90 +174,14 @@ endfunction
 
 " }}}
 
-
-" Table registration {{{
-
-function! s:new_kana_table_builder() abort
-  return s:_new_lazy_keymap_table_builder(
-  \ 'kana', 'Nesk.Table.Kana'
-  \)
-endfunction
-
-function! s:new_kata_table_builder() abort
-  return s:_new_lazy_keymap_table_builder(
-  \ 'kata', 'Nesk.Table.Kata'
-  \)
-endfunction
-
-function! s:new_hankata_table_builder() abort
-  return s:_new_lazy_keymap_table_builder(
-  \ 'hankata', 'Nesk.Table.Hankata'
-  \)
-endfunction
-
-function! s:new_zenei_table_builder() abort
-  return s:_new_lazy_keymap_table_builder(
-  \ 'zenei', 'Nesk.Table.Zenei'
-  \)
-endfunction
-
-function! s:new_skkdict_table_builders() abort
-  let builders = []
-  let reg_table = s:Error.NIL
-  for t in s:SKKDICT_TABLES.tables
-    let builder = s:_new_lazy_import_builder(
-    \ t.name, 'Nesk.Table.SKKDict',
-    \ 'builder', [t.name, t.path, t.sorted, t.encoding]
-    \)
-    let builders += [builder]
-  endfor
-  " If no sorted dictionaries found, this table is read-only
-  let multidict = s:_new_lazy_import_builder(
-  \ s:SKKDICT_TABLES.name, 'Nesk.Table.SKKDict',
-  \ 'builder_multi', [s:SKKDICT_TABLES.name, builders, s:SKKDICT_TABLES.reg_dict_index]
-  \)
-  " NOTE: Do not add multidict to builders!
-  " It causes infinite recursive call because
-  " multidict.build() calls each builder build()
-  return builders + [multidict]
-endfunction
-
-" Delay V.import() of table module
-function! s:_new_lazy_keymap_table_builder(name, module) abort
-  function! s:_lazy_build() abort closure
-    let table = s:V.import(a:module).new(a:name)
-    return [table, s:Error.NIL]
-  endfunction
-  return {
-  \ 'name': a:name,
-  \ 'build': funcref('s:_lazy_build'),
-  \}
-endfunction
-
-" Delay V.import() of table module
-function! s:_new_lazy_import_builder(name, module, method, args) abort
-  function! s:_lazy_build() abort closure
-    let module = s:V.import(a:module)
-    let builder = call(module[a:method], a:args, module)
-    return builder.build()
-  endfunction
-  return {
-  \ 'name': a:name,
-  \ 'build': funcref('s:_lazy_build'),
-  \}
-endfunction
-
-" }}}
-
 " Table Normal State (kana, kata, hankata) {{{
 
-function! s:new_table_normal_state(nesk, name, mode_table) abort
+function! s:new_table_normal_state(nesk, simple_name, mode_table) abort
   return {
   \ '_nesk': a:nesk,
   \ '_mode_table': a:mode_table,
   \ '_key': '',
-  \ '_simple_name': a:name,
-  \ 'name': a:name . '/normal',
+  \ 'name': a:simple_name . '/normal',
   \ 'next': function('s:_TableNormalState_next'),
   \ 'commit': function('s:_TableNormalState_commit'),
   \}
@@ -342,15 +251,15 @@ function! s:_TableNormalState_next(in, out) abort dict
   elseif c is# 'L'
     return s:_handle_normal_mode_key(self, 'skk/zenei', a:in, a:out)
   elseif c is# 'q'
-    let mode = self.name is# 'skk/kana' ? s:new_kata_mode(self._nesk) : s:new_kana_mode(self._nesk)
+    let mode = self.name is# 'skk/kana' ? s:new_kata_mode(self._nesk) : s:new_hira_mode(self._nesk)
     return s:_handle_normal_table_key(self, mode, a:in, a:out)
   elseif c is# "\<C-q>"
-    let mode = self.name is# 'skk/kana' ? s:new_hankata_mode(self._nesk) : s:new_kana_mode(self._nesk)
+    let mode = self.name is# 'skk/kana' ? s:new_hankata_mode(self._nesk) : s:new_hira_mode(self._nesk)
     return s:_handle_normal_table_key(self, mode, a:in, a:out)
   elseif c is# 'Q'
     call a:in.unread()
     let state = s:new_table_preediting_state(
-    \ self._nesk, self.name, self._mode_table, s:PREEDITING_MARKER
+    \ self._nesk, s:_simple_name(self.name), self._mode_table, s:PREEDITING_MARKER
     \)
     return [state, s:Error.NIL]
   elseif c =~# '^[A-Z]$'
@@ -449,7 +358,6 @@ function! s:new_table_preediting_state(nesk, simple_name, mode_table, marker) ab
   \ '_key': '',
   \ '_converted_key': [],
   \ '_buf': [],
-  \ '_simple_name': a:simple_name,
   \ 'name': a:simple_name . '/preediting',
   \ 'next': function('s:_TablePreeditingState_next0'),
   \ 'commit': function('s:_TablePreeditingState_commit'),
@@ -481,7 +389,7 @@ function! s:_TablePreeditingState_next1(in, out) abort dict
     let bs = repeat("\<C-h>", strchars(self._marker . buf))
     call s:_write(a:out, bs . buf)
     let state = s:new_table_normal_state(
-    \ self._nesk, self._simple_name, self._mode_table
+    \ self._nesk, s:_simple_name(self.name), self._mode_table
     \)
     return [state, s:Error.NIL]
   elseif c is# "\<CR>"
@@ -511,7 +419,7 @@ function! s:_TablePreeditingState_next1(in, out) abort dict
     let bs = repeat("\<C-h>", strchars(self._marker . buf))
     call s:_write(a:out, bs . buf)
     let state = s:new_table_normal_state(
-    \ self._nesk, self._simple_name, self._mode_table
+    \ self._nesk, s:_simple_name(self.name), self._mode_table
     \)
     return [state, s:Error.NIL]
   elseif c is# "\x80"    " backspace is \x80 k b
@@ -541,7 +449,7 @@ function! s:_TablePreeditingState_next1(in, out) abort dict
     endif
     " Back to TableNormalState
     let state = s:new_table_normal_state(
-    \ self._nesk, self._simple_name, self._mode_table
+    \ self._nesk, s:_simple_name(self.name), self._mode_table
     \)
     return [state, s:Error.NIL]
   elseif c is# 'l'
@@ -578,9 +486,9 @@ function! s:_TablePreeditingState_next1(in, out) abort dict
     endwhile
     return [state, s:Error.NIL]
   elseif c is# ' '
-    let [dict_table, err] = self._nesk.get_table(s:SKKDICT_TABLES.name)
+    let [dict_table, err] = self._nesk.get_table('skkdict')
     if err isnot# s:Error.NIL
-      let err = s:Error.wrap(err, 'Cannot load ' . s:SKKDICT_TABLES.name . ' table')
+      let err = s:Error.wrap(err, 'Cannot load skkdict table')
       return s:_error(self, a:in, err)
     endif
     let new_key = join(self._buf, '')
@@ -649,7 +557,7 @@ function! s:_send_converted_key_in_kana_state(state, in, out, enter_char, back_c
   endif
 
   " Send a:state._converted_key in the certain mode again
-  let state = s:new_kana_mode(a:state._nesk)
+  let state = s:new_hira_mode(a:state._nesk)
   while in.size() ># 0
     let [state, err] = state.next(in, a:out)
     if err isnot# s:Error.NIL
@@ -696,8 +604,7 @@ function! s:new_kanji_convert_state(nesk, dict_table, prev_state, prev_inserted,
   \ '_key': a:key,
   \ '_marker': a:marker,
   \ '_mode_table': a:mode_table,
-  \ '_simple_name': a:prev_state._simple_name,
-  \ 'name': a:prev_state._simple_name . '/kanji',
+  \ 'name': s:_simple_name(a:prev_state.name) . '/kanji',
   \ 'next': function('s:_KanjiConvertState_next0'),
   \}
 endfunction
@@ -725,7 +632,6 @@ function! s:_KanjiConvertState_next0(in, out) abort dict
   \ '_mode_table': self._mode_table,
   \ '_candidates': candidates,
   \ '_cand_idx': 0,
-  \ '_simple_name': self._prev_state._simple_name,
   \ 'name': self._prev_state.name,
   \ 'next': function('s:_KanjiConvertState_next1'),
   \}
@@ -742,7 +648,7 @@ function! s:_KanjiConvertState_next1(in, out) abort dict
     call s:_write(a:out, bs . cand)
     " Back to TableNormalState
     let state = s:new_table_normal_state(
-    \ self._nesk, self._prev_state._simple_name, self._mode_table
+    \ self._nesk, s:_simple_name(self._prev_state.name), self._mode_table
     \)
     return [state, s:Error.NIL]
   elseif c is# "\<CR>"
@@ -814,8 +720,7 @@ function! s:new_register_dict_state(nesk, prev_state, key, head_marker, left_mar
   \ '_head_marker': a:head_marker,
   \ '_left_marker': a:left_marker,
   \ '_right_marker': a:right_marker,
-  \ '_simple_name': a:prev_state._simple_name,
-  \ 'name': a:prev_state._simple_name . '/registering',
+  \ 'name': s:_simple_name(a:prev_state.name) . '/registering',
   \ 'next': function('s:_RegisterDictState_next0'),
   \}
 endfunction
@@ -829,19 +734,17 @@ function! s:_RegisterDictState_next0(in, out) abort dict
   \ self._left_marker . self._right_marker . "\<Left>"
   \)
 
-  let [skkdict, err] = self._nesk.get_table(s:SKKDICT_TABLES.name)
+  let [skkdict, err] = self._nesk.get_table('skkdict')
   if err isnot# s:Error.NIL
-    let err = s:Error.wrap(err, 'Cannot load ' . s:SKKDICT_TABLES.name . ' table')
+    let err = s:Error.wrap(err, 'Cannot load skkdict table')
     return s:_error(self, a:in, err)
   endif
-  " TODO: name
   let state = {
   \ '_key': self._key,
   \ '_prev_state': self._prev_state,
-  \ '_sub_state': s:new_kana_mode(self._nesk),
+  \ '_sub_state': s:new_hira_mode(self._nesk),
   \ '_bw': s:V.import('Nesk.IO.VimBufferWriter').new(),
   \ '_skkdict': skkdict,
-  \ '_simple_name': self._prev_state._simple_name,
   \ 'name': self._prev_state.name,
   \ 'next': function('s:_RegisterDictState_next1'),
   \}
@@ -871,12 +774,14 @@ endfunction
 
 " }}}
 
+" Util {{{
+
 function! s:_read_char(in) abort
   let [c, err] = a:in.read_char()
   if !s:Error.is_error(err)
-    throw 'a:in.read_char() returned non-error object: ' . string(err)
+    throw 'Nesk.Mode.SKK: a:in.read_char() returned non-error object: ' . string(err)
   elseif err isnot# s:Error.NIL
-    throw err.exception . ' @ ' . err.throwpoint
+    throw 'Nesk.Mode.SKK: ' . err.exception . ' @ ' . err.throwpoint
   endif
   return c
 endfunction
@@ -884,9 +789,9 @@ endfunction
 function! s:_write(out, str) abort
   let err = a:out.write(a:str)
   if !s:Error.is_error(err)
-    throw 'a:out.write() returned non-error object: ' . string(err)
+    throw 'Nesk.Mode.SKK: a:out.write() returned non-error object: ' . string(err)
   elseif err isnot# s:Error.NIL
-    throw err.exception . ' @ ' . err.throwpoint
+    throw 'Nesk.Mode.SKK: ' . err.exception . ' @ ' . err.throwpoint
   endif
 endfunction
 
@@ -895,6 +800,15 @@ function! s:_error(state, in, err) abort
   return [s:Nesk.new_reset_mode_state(a:state.name), a:err]
 endfunction
 
+function! s:_simple_name(name) abort
+  let simple = matchstr(a:name, '^[^/]\+/[^/]\+')
+  if simple is# ''
+    throw 'Nesk.Mode.SKK: could not convert to simple name: ' . string(a:name)
+  endif
+  return simple
+endfunction
+
+" }}}
 
 let &cpo = s:save_cpo
 unlet s:save_cpo

@@ -106,33 +106,33 @@ function! s:_Nesk_is_enabled() abort dict
 endfunction
 let s:Nesk.is_enabled = function('s:_Nesk_is_enabled')
 
-function! s:_Nesk_load_modes_in_rtp() abort dict
-  let loaded_modes = {}
+function! s:_Nesk_load_init() abort dict
+  let loaded = {}
   for line in split(execute('scriptnames'), '\n')
     let m = matchlist(line, '^\s*\d\+: \(.*\)$')
     if empty(m)
       continue
     endif
     let path = tr(m[1], '\', '/')
-    let m = matchlist(path, '/autoload/nesk/mode/\(.*\).vim$')
+    let m = matchlist(path, '/autoload/nesk/init/\(.*\).vim$')
     if empty(m)
       continue
     endif
-    let loaded_modes[m[1]] = 1
+    let loaded[m[1]] = 1
   endfor
-  for file in globpath(&rtp, '/autoload/nesk/mode/*.vim', 1, 1)
-    let name = matchstr(tr(file, '\', '/'), '/autoload/nesk/mode/\zs.*\ze.vim$')
-    if !has_key(loaded_modes, name)
+  for file in globpath(&rtp, 'autoload/nesk/init/**/*.vim', 1, 1)
+    let name = matchstr(tr(file, '\', '/'), '/autoload/nesk/init/\zs.*\ze.vim$')
+    if !has_key(loaded, name)
       try
         source `=file`
       catch
         let err = s:Error.new(v:exception, v:throwpoint)
-        return s:Error.wrap(err, 'failed to load ' . name . ' mode')
+        return s:Error.wrap(err, 'failed to load ' . file)
       endtry
     endif
-    let fn = 'nesk#mode#' . name . '#load'
+    let fn = 'nesk#init#' . tr(name, '/', '#') . '#load'
     if !exists('*' . fn)
-      let msg = printf('mode %s was sourced but function %s was not defined', name, fn)
+      let msg = printf('%s was sourced but function %s was not defined', file, fn)
       return s:Error.new(msg)
     endif
     let err = {fn}(self)
@@ -142,9 +142,9 @@ function! s:_Nesk_load_modes_in_rtp() abort dict
   endfor
   return s:Error.NIL
 endfunction
-let s:Nesk.load_modes_in_rtp = function('s:_Nesk_load_modes_in_rtp')
+let s:Nesk.load_init = function('s:_Nesk_load_init')
 
-function! s:_Nesk_init_active_mode() abort dict
+function! s:_Nesk_reset_active_mode() abort dict
   if !self.is_enabled()
     return s:Error.new('mode is disabled')
   endif
@@ -159,7 +159,7 @@ function! s:_Nesk_init_active_mode() abort dict
   let self._states[mode_name] = [mode]
   return s:Error.NIL
 endfunction
-let s:Nesk.init_active_mode = function('s:_Nesk_init_active_mode')
+let s:Nesk.reset_active_mode = function('s:_Nesk_reset_active_mode')
 
 function! s:_Nesk_get_active_mode_name() abort dict
   if self._active_mode_name is# ''
@@ -222,15 +222,15 @@ function! s:_Nesk_get_active_mode() abort dict
 endfunction
 let s:Nesk.get_active_mode = function('s:_Nesk_get_active_mode')
 
-function! s:_Nesk_define_mode(mode) abort dict
+function! s:_Nesk_add_mode(mode) abort dict
   let err = s:_validate_mode(self, a:mode)
   if err isnot# s:Error.NIL
-    return s:Error.wrap(err, 'nesk#define_mode()')
+    return s:Error.wrap(err, 'nesk#add_mode()')
   endif
   let self._modes[a:mode.name] = a:mode
   return s:Error.NIL
 endfunction
-let s:Nesk.define_mode = function('s:_Nesk_define_mode')
+let s:Nesk.add_mode = function('s:_Nesk_add_mode')
 
 function! s:_validate_mode(nesk, mode) abort
   if type(a:mode) isnot# v:t_dict
@@ -274,7 +274,7 @@ function! s:_Nesk_get_table(name) abort dict
 endfunction
 let s:Nesk.get_table = function('s:_Nesk_get_table')
 
-function! s:_Nesk_define_table_builder(builder) abort dict
+function! s:_Nesk_add_table_builder(builder) abort dict
   let err = s:_validate_table_builder(self, a:builder)
   if err isnot# s:Error.NIL
     return err
@@ -282,7 +282,7 @@ function! s:_Nesk_define_table_builder(builder) abort dict
   let self._table_builders[a:builder.name] = a:builder
   return s:Error.NIL
 endfunction
-let s:Nesk.define_table_builder = function('s:_Nesk_define_table_builder')
+let s:Nesk.add_table_builder = function('s:_Nesk_add_table_builder')
 
 function! s:_validate_table_builder(nesk, builder) abort
   if type(a:builder) isnot# v:t_dict
@@ -298,16 +298,16 @@ function! s:_validate_table_builder(nesk, builder) abort
   return s:Error.NIL
 endfunction
 
-function! s:_Nesk_define_table(table) abort dict
+function! s:_Nesk_add_table(table) abort dict
   let err = s:_validate_table(self, a:table)
   if err isnot# s:Error.NIL
     return err
   endif
   let self._tables[a:table.name] = a:table
   " Also define table builder
-  return self.define_table_builder(s:_default_builder(a:table))
+  return self.add_table_builder(s:_default_builder(a:table))
 endfunction
-let s:Nesk.define_table = function('s:_Nesk_define_table')
+let s:Nesk.add_table = function('s:_Nesk_add_table')
 
 function! s:_validate_table(nesk, table) abort
   if type(a:table) isnot# v:t_dict

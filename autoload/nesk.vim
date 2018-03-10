@@ -41,10 +41,10 @@ function! nesk#enable() abort
   let nesk = nesk#get_instance()
   if !nesk.is_enabled()
     if !s:loaded_rtp
-      let err = nesk.load_modes_in_rtp()
+      let err = nesk.load_init()
       if err isnot# s:Error.NIL
         call s:echomsg('ErrorMsg', err.exception . ' at ' . err.throwpoint)
-        return
+        return ''
       endif
       let s:loaded_rtp = 1
     endif
@@ -69,10 +69,10 @@ function! s:enable() abort
   augroup nesk-disable-hook
     autocmd!
     if s:KEEP_STATE
-      " The return value of nesk.init_active_mode() was ignored
+      " The return value of nesk.reset_active_mode() was ignored
       autocmd InsertLeave <buffer> call s:init_if_enabled()
     else
-      " The return value of nesk.init_active_mode() was ignored
+      " The return value of nesk.reset_active_mode() was ignored
       " but the return string value is already inserted to buffer at
       " InsertLeave, so it is safe.
       autocmd InsertLeave <buffer> call nesk#get_instance().disable()
@@ -86,7 +86,7 @@ endfunction
 function! s:init_if_enabled() abort
   let nesk = nesk#get_instance()
   if nesk.is_enabled()
-    call nesk.init_active_mode()
+    call nesk.reset_active_mode()
   endif
 endfunction
 
@@ -130,7 +130,7 @@ function! nesk#send(str) abort
   endif
   let nesk = nesk#get_instance()
   if !s:loaded_rtp
-    let err = nesk.load_modes_in_rtp()
+    let err = nesk.load_init()
     if err isnot# s:Error.NIL
       call s:echomsg('ErrorMsg', err.exception . ' at ' . err.throwpoint)
       return ''
@@ -149,7 +149,7 @@ endfunction
 
 function! nesk#convert(str) abort
   let nesk = nesk#new()
-  let err = nesk.load_modes_in_rtp()
+  let err = nesk.load_init()
   if err isnot# s:Error.NIL
     call s:echomsg('ErrorMsg', err.exception . ' at ' . err.throwpoint)
     return ''
@@ -167,8 +167,8 @@ function! nesk#convert(str) abort
   return str
 endfunction
 
-function! nesk#define_mode(mode) abort
-  let err = nesk#get_instance().define_mode(a:mode)
+function! nesk#add_mode(mode) abort
+  let err = nesk#get_instance().add_mode(a:mode)
   if err is# s:Error.NIL
     return
   endif
@@ -176,8 +176,8 @@ function! nesk#define_mode(mode) abort
   sleep 2
 endfunction
 
-function! nesk#define_table(table) abort
-  let err = nesk#get_instance().define_table(a:table)
+function! nesk#add_table(table) abort
+  let err = nesk#get_instance().add_table(a:table)
   if err is# s:Error.NIL
     return
   endif
