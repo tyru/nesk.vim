@@ -1,4 +1,4 @@
-# nesk.vim ![Travis Status](https://travis-ci.org/tyru/nesk.vim.svg?branch=master)
+# nesk.vim [![Travis Status](https://travis-ci.org/tyru/nesk.vim.svg?branch=master)](https://travis-ci.org/tyru/nesk.vim)
 
 **NOTE: DOES NOT WORK NOW**
 
