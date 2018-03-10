@@ -752,22 +752,24 @@ function! s:_RegisterDictState_next0(in, out) abort dict
 endfunction
 
 function! s:_RegisterDictState_next1(in, out) abort dict
-  let out = s:V.import('Nesk.IO.MultiWriter').new([a:out, self._bw])
   while a:in.size() ># 0
-    let [self._sub_state, err] = self._sub_state.next(a:in, out)
+    let [self._sub_state, err] = self._sub_state.next(a:in, self._bw)
     if err isnot# s:Error.NIL
       return s:_error(self, a:in, err)
     endif
     " If <CR> was pressed, register the word and return to the previous state
     let word = self._bw.to_string()
     let idx = stridx(word, "\<CR>")
-    if idx ># 1
+    if idx ># 0
       let err = self._skkdict.register(self._key, word[: idx - 1])
       if err isnot# s:Error.NIL
         return s:_error(self, a:in, err)
       endif
       return [self._prev_state, s:Error.NIL]
+    elseif idx is# 0
+      return [self._prev_state, s:Error.NIL]
     endif
+    call s:_write(a:out, word)
   endwhile
   return [self, s:Error.NIL]
 endfunction
