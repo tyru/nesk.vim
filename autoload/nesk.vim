@@ -70,7 +70,7 @@ function! s:enable() abort
     autocmd!
     if s:KEEP_STATE
       " The return value of nesk.reset_active_mode() was ignored
-      autocmd InsertLeave <buffer> call s:init_if_enabled()
+      autocmd InsertLeave <buffer> call s:reset_if_enabled()
     else
       " The return value of nesk.reset_active_mode() was ignored
       " but the return string value is already inserted to buffer at
@@ -83,7 +83,7 @@ function! s:enable() abort
   setlocal imsearch=-1
 endfunction
 
-function! s:init_if_enabled() abort
+function! s:reset_if_enabled() abort
   let nesk = nesk#get_instance()
   if nesk.is_enabled()
     call nesk.reset_active_mode()
@@ -94,16 +94,21 @@ function! nesk#disable() abort
   call s:disable()
   redrawstatus
 
+  " NOTE: Vim can't enter lang-mode immediately
+  " in insert-mode or commandline-mode.
+  " We have to use i_CTRL-^ .
+  let disable = &l:iminsert isnot# 0 ? "\<C-^>" : ''
+
   if nesk#get_instance().is_enabled()
-    let [str, err] = nesk#get_instance().disable()
+    let [committed, err] = nesk#get_instance().disable()
     if err isnot# s:Error.NIL
       call s:echomsg('ErrorMsg', err.exception . ' at ' . err.throwpoint)
       sleep 2
-      return ''
+      return disable
     endif
-    return str
+    return disable . committed
   endif
-  return ''
+  return disable
 endfunction
 
 function! s:disable() abort
@@ -111,7 +116,6 @@ function! s:disable() abort
     autocmd!
   augroup END
   call s:unmap_keys(s:MAP_KEYS)
-  setlocal iminsert=0 imsearch=0
 endfunction
 
 function! nesk#toggle() abort
@@ -141,10 +145,9 @@ function! nesk#send(str) abort
   if err is# s:Error.NIL
     return str
   endif
-  call s:disable()
   call s:echomsg('ErrorMsg', err.exception . ' at ' . err.throwpoint)
   sleep 2
-  return ''
+  return nesk#disable()
 endfunction
 
 function! nesk#convert(str) abort

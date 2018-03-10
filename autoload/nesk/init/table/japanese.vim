@@ -84,14 +84,14 @@ function! s:new_skkdict_builders(V) abort
   let reg_table = Error.NIL
   for t in s:SKKDICT_TABLES.tables
     let builder = s:new_lazy_import_builder(
-    \ t.name, 'Nesk.Table.SKKDict',
+    \ a:V, t.name, 'Nesk.Table.SKKDict',
     \ 'builder', [t.name, t.path, t.sorted, t.encoding]
     \)
     let builders += [builder]
   endfor
   " If no sorted dictionaries found, this table is read-only
   let multidict = s:new_lazy_import_builder(
-  \ 'skkdict', 'Nesk.Table.SKKDict',
+  \ a:V, 'skkdict', 'Nesk.Table.SKKDict',
   \ 'builder_multi', ['skkdict', builders, s:SKKDICT_TABLES.reg_dict_index]
   \)
   " NOTE: Do not add multidict to builders!
@@ -101,9 +101,9 @@ function! s:new_skkdict_builders(V) abort
 endfunction
 
 " Delay V.import() of table module
-function! s:new_lazy_import_builder(name, module, method, args) abort
+function! s:new_lazy_import_builder(V, name, module, method, args) abort
   function! s:lazy_build() abort closure
-    let module = s:V.import(a:module)
+    let module = a:V.import(a:module)
     let builder = call(module[a:method], a:args, module)
     return builder.build()
   endfunction

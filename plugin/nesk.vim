@@ -8,26 +8,21 @@ if exists('g:loaded_nesk') && g:loaded_nesk
 endif
 let g:loaded_nesk = 1
 
-if v:version < 704
+if v:version < 800
   echohl ErrorMsg
   echomsg 'nesk.vim: warning: Your Vim is too old.'
-  \       'Please use 7.4 at least.'
+  \       'Please use 8.0 at least.'
   echohl None
 endif
 
 
 noremap! <expr> <Plug>(nesk:enable)     nesk#enable()
-lnoremap <expr> <Plug>(nesk:enable)     nesk#enable()
-
 noremap! <expr> <Plug>(nesk:disable)    nesk#disable()
-lnoremap <expr> <Plug>(nesk:disable)    nesk#disable()
-
 noremap! <expr> <Plug>(nesk:toggle)     nesk#toggle()
-lnoremap <expr> <Plug>(nesk:toggle)     nesk#toggle()
 
 
 if !get(g:, 'nesk#no_default_mappings', 0)
-  for mode in ['i', 'c', 'l']
+  for mode in ['i', 'c']
     if !hasmapto('<Plug>(nesk:toggle)', mode)
       execute 'silent!' mode . 'map' '<unique> <C-j> <Plug>(nesk:toggle)'
     endif
