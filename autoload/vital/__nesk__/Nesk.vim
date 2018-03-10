@@ -55,7 +55,6 @@ function! s:new() abort
   \ '_tables': {},
   \ '_logger': logger,
   \})
-  let nesk.transit = function('s:_Nesk_transit')
   return nesk
 endfunction
 
@@ -349,18 +348,16 @@ function! s:_Nesk_send(str) abort dict
   let out = s:StringWriter.new()
   try
     let [state, err] = self.transit(state, in, out)
-    if err is# s:Error.NIL
-      let state = state
-      call self.set_active_state(state)
-      return [out.to_string(), s:Error.NIL]
+    if err isnot# s:Error.NIL
+      return ['', err]
     endif
+    let err = self.set_active_state(state)
+    return [out.to_string(), err]
   catch
     let ex = type(v:exception) is# v:t_string ? v:exception : string(v:exception)
     let err = s:Error.new(ex, v:throwpoint)
+    return ['', err]
   endtry
-  " Error
-  let [str, err2] = self.disable()
-  return [str, s:Error.append(err, err2)]
 endfunction
 let s:Nesk.send = function('s:_Nesk_send')
 
@@ -373,16 +370,15 @@ function! s:_Nesk_convert(str) abort dict
   let out = s:V.import('Nesk.IO.VimBufferWriter').new()
   try
     let [state, err] = self.transit(state, in, out)
-    if err is# s:Error.NIL
-      return [out.to_string(), s:Error.NIL]
+    if err isnot# s:Error.NIL
+      return ['', err]
     endif
+    return [out.to_string(), s:Error.NIL]
   catch
     let ex = type(v:exception) is# v:t_string ? v:exception : string(v:exception)
     let err = s:Error.new(ex, v:throwpoint)
+    return ['', err]
   endtry
-  " Error
-  let [str, err2] = self.disable()
-  return [str, s:Error.append(err, err2)]
 endfunction
 let s:Nesk.convert = function('s:_Nesk_convert')
 
@@ -412,6 +408,7 @@ function! s:_Nesk_transit(state, in, out) abort dict
     call self._logger.flush()
   endtry
 endfunction
+let s:Nesk.transit = function('s:_Nesk_transit')
 
 " * Transform table object into '<table "{name}">'
 " * Transform Funcref

@@ -97,16 +97,16 @@ function! nesk#disable() abort
   " NOTE: Vim can't enter lang-mode immediately
   " in insert-mode or commandline-mode.
   " We have to use i_CTRL-^ .
-  let disable = &l:iminsert isnot# 1 ? "\<C-^>" : ''
+  let disable = &l:iminsert isnot# 0 ? "\<C-^>" : ''
 
   if nesk#get_instance().is_enabled()
-    let [str, err] = nesk#get_instance().disable()
+    let [committed, err] = nesk#get_instance().disable()
     if err isnot# s:Error.NIL
       call s:echomsg('ErrorMsg', err.exception . ' at ' . err.throwpoint)
       sleep 2
       return disable
     endif
-    return disable . str
+    return disable . committed
   endif
   return disable
 endfunction
@@ -145,10 +145,9 @@ function! nesk#send(str) abort
   if err is# s:Error.NIL
     return str
   endif
-  call s:disable()
   call s:echomsg('ErrorMsg', err.exception . ' at ' . err.throwpoint)
   sleep 2
-  return ''
+  return nesk#disable()
 endfunction
 
 function! nesk#convert(str) abort

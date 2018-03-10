@@ -17,17 +17,12 @@ endif
 
 
 noremap! <expr> <Plug>(nesk:enable)     nesk#enable()
-lnoremap <expr> <Plug>(nesk:enable)     nesk#enable()
-
 noremap! <expr> <Plug>(nesk:disable)    nesk#disable()
-lnoremap <expr> <Plug>(nesk:disable)    nesk#disable()
-
 noremap! <expr> <Plug>(nesk:toggle)     nesk#toggle()
-lnoremap <expr> <Plug>(nesk:toggle)     nesk#toggle()
 
 
 if !get(g:, 'nesk#no_default_mappings', 0)
-  for mode in ['i', 'c', 'l']
+  for mode in ['i', 'c']
     if !hasmapto('<Plug>(nesk:toggle)', mode)
       execute 'silent!' mode . 'map' '<unique> <C-j> <Plug>(nesk:toggle)'
     endif
