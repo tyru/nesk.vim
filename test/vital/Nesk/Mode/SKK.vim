@@ -45,6 +45,8 @@ function! s:suite.__convert__()
     \ ["aK\<C-h>\<C-h>", "あ", "あ▽k\<C-h>\<C-h>"],
     \ ["aKa\<C-h>\<C-h>", "あ", "あ▽k\<C-h>か\<C-h>\<C-h>"],
     \
+    \ ["Amenbo\<C-j>", 'あめんぼ', "▽あm\<C-h>めn\<C-h>んb\<C-h>ぼ\<C-h>\<C-h>\<C-h>\<C-h>\<C-h>あめんぼ"],
+    \
     \ ['Kekkonq(Kariq)', 'ケッコン(カリ)', "▽k\<C-h>けk\<C-h>っk\<C-h>こn\<C-h>\<C-h>\<C-h>\<C-h>\<C-h>ケッコン(▽k\<C-h>かr\<C-h>り\<C-h>\<C-h>\<C-h>カリ)"],
     \ ['Qkekkonq(Qkariq)', 'ケッコン(カリ)', "▽k\<C-h>けk\<C-h>っk\<C-h>こn\<C-h>\<C-h>\<C-h>\<C-h>ケッコン(k\<C-h>かr\<C-h>り\<C-h>\<C-h>カリ)"],
     \ ['Kekkonnq(Kariq)', 'ケッコン(カリ)', "▽k\<C-h>けk\<C-h>っk\<C-h>こn\<C-h>ん\<C-h>\<C-h>\<C-h>\<C-h>\<C-h>ケッコン(▽k\<C-h>かr\<C-h>り\<C-h>\<C-h>\<C-h>カリ)"],
