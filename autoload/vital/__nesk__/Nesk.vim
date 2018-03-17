@@ -8,7 +8,7 @@ function! s:_vital_loaded(V) abort
   let s:V = a:V
   let s:Error = a:V.import('Nesk.Error')
   let s:StringReader = a:V.import('Nesk.IO.StringReader')
-  let s:StringWriter = a:V.import('Nesk.IO.StringWriter')
+  let s:VimBufferWriter = a:V.import('Nesk.IO.VimBufferWriter')
   let s:Log = a:V.import('Nesk.Log')
 
   " TODO: Global variable
@@ -19,7 +19,6 @@ function! s:_vital_depends() abort
   return [
   \ 'Nesk.Error',
   \ 'Nesk.IO.StringReader',
-  \ 'Nesk.IO.StringWriter',
   \ 'Nesk.IO.VimBufferWriter',
   \ 'Nesk.Log',
   \]
@@ -51,6 +50,7 @@ function! s:new() abort
   \ '_initial_mode': s:INITIAL_MODE,
   \ '_modes': {},
   \ '_states': {},
+  \ '_preedit': s:Error.NIL,
   \ '_table_builders': {},
   \ '_tables': {},
   \ '_logger': logger,
@@ -69,6 +69,7 @@ function! s:_Nesk_enable() abort dict
   if err isnot# s:Error.NIL
     return err
   endif
+  let self._preedit = s:VimBufferWriter.new()
   " Reset self._active_mode_name because self.set_active_mode_name() will fail
   " if self._active_mode_name == mode_name
   let self._active_mode_name = ''
@@ -80,11 +81,13 @@ function! s:_Nesk_disable() abort dict
   if !self.is_enabled()
     return ['', s:Error.NIL]
   endif
-  let committed = ''
-  let [state, err] = self.get_active_state()
-  if err is# s:Error.NIL && has_key(state, 'commit')
-    let committed = state.commit()
+  let preedit = self._preedit.get_preedit()
+  if err is# s:Error.NIL && preedit isnot# ''
+    let committed = repeat("\<C-h>", strchars(preedit))
+  else
+    let committed = ''
   endif
+  let self._preedit = s:VimBufferWriter.new()
   let self._states = {}
   let self._active_mode_name = ''
   return [committed, s:Error.NIL]
@@ -151,6 +154,7 @@ function! s:_Nesk_reset_active_mode() abort dict
   if err isnot# s:Error.NIL
     return err
   endif
+  let self._preedit = s:VimBufferWriter.new()
   let self._states[mode_name] = mode
   return s:Error.NIL
 endfunction
@@ -253,10 +257,6 @@ function! s:_validate_mode(nesk, mode) abort
   if !has_key(a:mode, 'next') || type(a:mode.next) isnot# v:t_func
     return s:Error.new(a:name . '.next is not Funcref')
   endif
-  " mode.commit (optional)
-  if has_key(a:mode, 'commit') && type(a:mode.commit) isnot# v:t_func
-    return s:Error.new(a:name . '.commit is not Funcref')
-  endif
   return s:Error.NIL
 endfunction
 
@@ -345,7 +345,7 @@ function! s:_Nesk_send(str) abort dict
     return ['', err]
   endif
   let in = s:StringReader.new(a:str)
-  let out = s:StringWriter.new()
+  let out = self._preedit
   try
     let [state, err] = self.transit(state, in, out)
     if err isnot# s:Error.NIL
@@ -357,6 +357,8 @@ function! s:_Nesk_send(str) abort dict
     let ex = type(v:exception) is# v:t_string ? v:exception : string(v:exception)
     let err = s:Error.new(ex, v:throwpoint)
     return ['', err]
+  finally
+    call self._preedit.insert()
   endtry
 endfunction
 let s:Nesk.send = function('s:_Nesk_send')
@@ -367,7 +369,7 @@ function! s:_Nesk_convert(str) abort dict
     return ['', err]
   endif
   let in = s:StringReader.new(a:str)
-  let out = s:V.import('Nesk.IO.VimBufferWriter').new()
+  let out = s:VimBufferWriter.new()
   try
     let [state, err] = self.transit(state, in, out)
     if err isnot# s:Error.NIL

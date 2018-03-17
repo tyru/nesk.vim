@@ -14,6 +14,8 @@ function! nesk#init#table#japanese#load(nesk) abort
   \ [s:new_katakana_builder(V)] +
   \ [s:new_hankata_builder(V)] +
   \ [s:new_zenei_builder(V)] +
+  \ [s:new_hiragana_to_katakana_builder(V)] +
+  \ [s:new_hiragana_to_hankata_builder(V)] +
   \ s:new_skkdict_builders(V)
     let err = a:nesk.add_table_builder(builder)
     if err isnot# Error.NIL
@@ -56,6 +58,24 @@ function! s:new_zenei_builder(V) abort
   \ '_V': a:V,
   \ 'name': 'japanese/zenei',
   \ '_path': 'autoload/nesk/init/table/japanese_zenei.json',
+  \ 'build': function('s:build'),
+  \}
+endfunction
+
+function! s:new_hiragana_to_katakana_builder(V) abort
+  return {
+  \ '_V': a:V,
+  \ 'name': 'japanese/hiragana-to-katakana',
+  \ '_path': 'autoload/nesk/init/table/japanese_hiragana_to_katakana.json',
+  \ 'build': function('s:build'),
+  \}
+endfunction
+
+function! s:new_hiragana_to_hankata_builder(V) abort
+  return {
+  \ '_V': a:V,
+  \ 'name': 'japanese/hiragana-to-hankata',
+  \ '_path': 'autoload/nesk/init/table/japanese_hiragana_to_hankata.json',
   \ 'build': function('s:build'),
   \}
 endfunction
