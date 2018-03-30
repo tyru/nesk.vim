@@ -19,21 +19,28 @@ let s:CURSOR_KEYS = ["\<Left>", "\<Right>"]
 " _preedit:
 "   Preedit string, list of characters.
 "   NOTE: Some special characters (e.g.: cursor keys) are not 1 byte.
+" _inserted_preedit:
+"   The previous preedit string inserted to Vim buffer
+"   NOTE: Some special characters (e.g.: cursor keys) are not 1 byte.
 " _committed:
 "   Committed string, list of characters.
 "   NOTE: Some special characters (e.g.: cursor keys) are not 1 byte.
 " _char_index:
 "   Index of character of `self._preedit`.
+" _prev_char_index:
+"   The previous value of `self._char_index` before `self.commit()` is executed.
 function! s:new() abort
   return {
   \ '_preedit': [],
+  \ '_inserted_preedit': [],
   \ '_committed': [],
   \ '_char_index': 0,
+  \ '_prev_char_index': 0,
   \ 'write': function('s:_VimBufferWriter_write'),
   \ 'set_char_index': function('s:_VimBufferWriter_set_char_index'),
   \ 'get_preedit': function('s:_VimBufferWriter_get_preedit'),
   \ 'get_committed': function('s:_VimBufferWriter_get_committed'),
-  \ 'insert': function('s:_VimBufferWriter_insert'),
+  \ 'commit': function('s:_VimBufferWriter_commit'),
   \ 'to_string': function('s:_VimBufferWriter_to_string'),
   \}
 endfunction
@@ -156,17 +163,25 @@ endfunction
 " `VimBufferWriter.to_string()` string.
 " This is normally used after getting inserted string by
 " `VimBufferWriter.to_string()`.
-function! s:_VimBufferWriter_insert() abort dict
+function! s:_VimBufferWriter_commit() abort dict
+  PP! ['commit()']
   let self._committed = []
+  let self._inserted_preedit = copy(self._preedit)
   let self._prev_char_index = self._char_index
 endfunction
 
 " Returns inserted string to Vim buffer.
 function! s:_VimBufferWriter_to_string() abort dict
-  let inserted = join(self._committed, '') .  join(self._preedit, '')
-  let diff = self._char_index - (self._prev_char_index + strchars(inserted))
+  PP! ['to_string()']
+  if empty(self._committed) && self._preedit ==# self._inserted_preedit
+    return ''
+  endif
+  let bs = repeat("\<C-h>", strchars(join(self._inserted_preedit, '')))
+  let new = join(self._preedit, '')
+  let diff = self._char_index - (self._prev_char_index + strchars(new))
   let move = repeat(diff ># 0 ? "\<Right>" : "\<Left>", diff)
-  return inserted . move
+  PP! ['to_string()', bs, new, move, self._committed, self._preedit, self._char_index, self._prev_char_index]
+  return bs . new . move
 endfunction
 
 

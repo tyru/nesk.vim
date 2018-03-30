@@ -82,7 +82,7 @@ function! s:_Nesk_disable() abort dict
     return ['', s:Error.NIL]
   endif
   let preedit = self._preedit.get_preedit()
-  if err is# s:Error.NIL && preedit isnot# ''
+  if preedit isnot# ''
     let committed = repeat("\<C-h>", strchars(preedit))
   else
     let committed = ''
@@ -358,7 +358,7 @@ function! s:_Nesk_send(str) abort dict
     let err = s:Error.new(ex, v:throwpoint)
     return ['', err]
   finally
-    call self._preedit.insert()
+    call out.commit()
   endtry
 endfunction
 let s:Nesk.send = function('s:_Nesk_send')

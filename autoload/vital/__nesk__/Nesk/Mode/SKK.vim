@@ -299,7 +299,7 @@ function! s:_append_char_to_preedit(in, out, table, c) abort
       elseif err isnot# s:ERROR_NO_RESULTS
         return err
       endif
-      call s:_commit(a:out, bs . join(result, ''))
+      call s:_commit(a:out, bs . committed)
       call s:_write(a:out, key)
     endif
   elseif len(cands) is# 1
@@ -381,16 +381,6 @@ function! s:_TablePreeditingState_next1(in, out) abort dict
     \ self._nesk, s:_simple_name(self.name), self._mode_table
     \)
     return [state, s:Error.NIL]
-
-
-    " FIXME: Get rid of:
-    " * self._key
-    "   let key = matchstr(a:out.get_preedit(), '[[:alpha:]]\+$')
-    " * self._buf
-    " * self._converted_key
-    " * s:_send_converted_key_in_kana_state()
-
-
   elseif c is# "\<CR>"
     " Back to TableNormalState
     let in = s:StringReader.new("\<C-j>")
@@ -536,31 +526,6 @@ function! s:_TablePreeditingState_next1(in, out) abort dict
     endif
     return [self, s:Error.NIL]
   endif
-endfunction
-
-function! s:_send_converted_key_in_kana_state(state, in, out, table) abort
-  let re = '^\V' . a:state._marker . '\m\zs.\{-}\ze[[:alpha:]]*$'
-  let buf = matchstr(a:out.get_preedit(), re)
-
-  " Remove inserted string
-  let bs = repeat("\<C-h>", strchars(a:state.get_preedit()))
-  call s:_write(a:out, bs)
-
-  if empty(a:state._converted_key)
-    let in = s:StringReader.new(a:enter_char)
-  else
-    let in = s:StringReader.new(a:enter_char . join(a:state._converted_key, '') . a:back_char)
-  endif
-
-  " Send a:state._converted_key in the certain mode again
-  let state = s:new_hira_mode(a:state._nesk)
-  while in.size() ># 0
-    let [state, err] = state.next(in, a:out)
-    if err isnot# s:Error.NIL
-      return s:_error(state, a:in, err)
-    endif
-  endwhile
-  return [state, s:Error.NIL]
 endfunction
 
 
@@ -762,6 +727,7 @@ function! s:_write(out, str) abort
   elseif err isnot# s:Error.NIL
     throw 'Nesk.Mode.SKK: ' . err.exception . ' @ ' . err.throwpoint
   endif
+  PP! ['s:_write()', a:str]
 endfunction
 
 function! s:_commit(out, str) abort
